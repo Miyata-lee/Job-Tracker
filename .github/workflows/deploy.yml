@@ -68,6 +68,7 @@ jobs:
           echo "DB Name: $(cat /tmp/db_name.txt)"
           echo "ALB DNS: $(cat /tmp/alb_dns.txt)"
           echo "ASG Name: $(cat /tmp/asg_name.txt)"
+
       - name: Deploy RDS Database
         run: |
           DB_HOST=$(cat /tmp/rds_endpoint.txt)
