@@ -6,7 +6,8 @@
 set -e
 
 # Configuration
-DB_HOST="${DB_HOST}"
+
+DB_HOST=$(echo "$DB_HOST" | cut -d: -f1)
 DB_USER="${DB_USER}"
 DB_PASSWORD="${DB_PASSWORD}"
 DB_NAME="jobtracker"
