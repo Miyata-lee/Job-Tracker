@@ -41,27 +41,16 @@ jobs:
           terraform init
           terraform apply -auto-approve
 
-      - name: Get Terraform Outputs
-        id: tf_outputs
-        working-directory: environment/${{ env.ENVIRONMENT }}
+      - name: Deploy RDS Database
+        env:
+            DB_HOST: ${{ steps.tf_outputs.outputs.rds_endpoint }}
+            DB_NAME: ${{ steps.tf_outputs.outputs.db_name }}
+            DB_USER: ${{ secrets.DB_USER }}
+            DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
         run: |
-          echo "rds_endpoint<<EOF" >> $GITHUB_OUTPUT
-          terraform output -raw rds_endpoint >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
-          echo "db_name<<EOF" >> $GITHUB_OUTPUT
-          terraform output -raw rds_database_name >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
-          echo "alb_dns<<EOF" >> $GITHUB_OUTPUT
-          terraform output -raw alb_dns_name >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
-          echo "asg_name<<EOF" >> $GITHUB_OUTPUT
-          terraform output -raw auto_scaling_group_name >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
-          echo "✅ Outputs saved successfully!"
+            echo "Using DB Host: $DB_HOST"
+            echo "Using DB Name: $DB_NAME"
+            bash scripts/deploy-rds.sh
 
       
 
