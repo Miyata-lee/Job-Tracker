@@ -71,9 +71,10 @@ jobs:
 
       - name: Deploy RDS Database
         run: |
-          DB_HOST=$(cat /tmp/rds_endpoint.txt)
-          DB_NAME=$(cat /tmp/db_name.txt)
-          export DB_HOST DB_NAME
+          cat /tmp/rds_endpoint.txt /tmp/db_name.txt > /tmp/rds_config.env
+          set -a
+          source /tmp/rds_config.env
+          set +a
           export DB_USER=${{ secrets.DB_USER }}
           export DB_PASSWORD=${{ secrets.DB_PASSWORD }}
           bash scripts/deploy-rds.sh
