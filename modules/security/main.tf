@@ -1,13 +1,9 @@
-# File: infrastructure/modules/security/main.tf
-# Updated: Added port 5000 for Flask app
-
 # ALB Security Group
 resource "aws_security_group" "alb" {
   name        = "${var.project_name}-alb-sg-${var.environment}"
   description = "Security group for ALB"
   vpc_id      = var.vpc_id
 
-  # Inbound: Allow HTTP from internet
   ingress {
     from_port   = 80
     to_port     = 80
@@ -15,7 +11,6 @@ resource "aws_security_group" "alb" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  # Outbound: Allow all
   egress {
     from_port   = 0
     to_port     = 0
@@ -28,13 +23,23 @@ resource "aws_security_group" "alb" {
   }
 }
 
+# RDS Security Group (Create first - no dependencies)
+resource "aws_security_group" "rds" {
+  name        = "${var.project_name}-rds-sg-${var.environment}"
+  description = "Security group for RDS database"
+  vpc_id      = var.vpc_id
+
+  tags = {
+    Name = "${var.project_name}-rds-sg-${var.environment}"
+  }
+}
+
 # EC2 Security Group
 resource "aws_security_group" "ec2" {
   name        = "${var.project_name}-ec2-sg-${var.environment}"
   description = "Security group for EC2 instances"
   vpc_id      = var.vpc_id
 
-  # Inbound: Allow HTTP from ALB
   ingress {
     from_port       = 80
     to_port         = 80
@@ -42,7 +47,6 @@ resource "aws_security_group" "ec2" {
     security_groups = [aws_security_group.alb.id]
   }
 
-  # Inbound: Allow Flask port 5000 from ALB (for health checks and direct access)
   ingress {
     from_port       = 5000
     to_port         = 5000
@@ -50,15 +54,13 @@ resource "aws_security_group" "ec2" {
     security_groups = [aws_security_group.alb.id]
   }
 
-  # Inbound: Allow SSH from anywhere (for deployment)
   ingress {
-   from_port   = 22
+    from_port   = 22
     to_port     = 22
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  # Outbound: Allow HTTPS to internet (for yum install, git clone)
   egress {
     from_port   = 443
     to_port     = 443
@@ -66,7 +68,6 @@ resource "aws_security_group" "ec2" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  # Outbound: Allow HTTP to internet (for yum install)
   egress {
     from_port   = 80
     to_port     = 80
@@ -74,7 +75,6 @@ resource "aws_security_group" "ec2" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  # Outbound: Allow MySQL to RDS
   egress {
     from_port       = 3306
     to_port         = 3306
@@ -87,25 +87,14 @@ resource "aws_security_group" "ec2" {
   }
 }
 
-# RDS Security Group
-resource "aws_security_group" "rds" {
-  name        = "${var.project_name}-rds-sg-${var.environment}"
-  description = "Security group for RDS database"
-  vpc_id      = var.vpc_id
-
-  # Inbound: Allow MySQL from EC2 only
-  ingress {
-    from_port       = 3306
-    to_port         = 3306
-    protocol        = "tcp"
-    security_groups = [aws_security_group.ec2.id]
-  }
-
-  # No outbound rules needed for RDS
-
-  tags = {
-    Name = "${var.project_name}-rds-sg-${var.environment}"
-  }
+# RDS Security Group Ingress Rule (after EC2 is created)
+resource "aws_security_group_rule" "rds_ingress" {
+  type                     = "ingress"
+  from_port                = 3306
+  to_port                  = 3306
+  protocol                 = "tcp"
+  security_group_id        = aws_security_group.rds.id
+  source_security_group_id = aws_security_group.ec2.id
 }
 
 # IAM Role for EC2 instances
@@ -130,7 +119,7 @@ resource "aws_iam_role" "ec2_role" {
   }
 }
 
-# IAM Policy for EC2 to access CloudWatch and Systems Manager
+# IAM Policy for EC2
 resource "aws_iam_role_policy" "ec2_policy" {
   name = "${var.project_name}-ec2-policy-${var.environment}"
   role = aws_iam_role.ec2_role.id
