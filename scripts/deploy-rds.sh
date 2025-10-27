@@ -10,7 +10,7 @@ DB_HOST="${DB_HOST}"
 DB_USER="${DB_USER}"
 DB_PASSWORD="${DB_PASSWORD}"
 DB_NAME="jobtracker"
-LOG_FILE="/var/log/jobtracker-rds-deploy.log"
+LOG_FILE="/tmp/jobtracker-rds-deploy.log"
 
 # Color codes
 GREEN='\033[0;32m'
