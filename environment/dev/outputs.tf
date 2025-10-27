@@ -82,7 +82,7 @@ output "rds_security_group_id" {
   value       = module.security.rds_security_group_id
 }
 
-# IAM Outputs
+# IAM outputs
 output "ec2_iam_role_name" {
   description = "IAM role name for EC2 instances"
   value       = module.security.ec2_iam_role_name
