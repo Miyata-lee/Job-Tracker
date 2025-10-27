@@ -13,6 +13,7 @@ module "compute" {
   ec2_security_group_id     = module.security.ec2_security_group_id
   ec2_iam_instance_profile  = module.security.ec2_instance_profile_name
   vpc_id                    = module.network.vpc_id
+  ec2_key_pair_name         = var.ec2_key_pair_name
 }
 
 module "network" {
