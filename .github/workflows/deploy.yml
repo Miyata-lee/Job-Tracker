@@ -33,50 +33,66 @@ jobs:
           terraform_version: 1.5.0
 
       - name: Terraform Init & Apply
-        id: tf_apply
         working-directory: environment/${{ env.ENVIRONMENT }}
         env:
           TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
           TF_VAR_ec2_key_pair_name: keyweb
         run: |
-          terraform init
-          terraform apply -auto-approve
+          terraform init -input=false
+          terraform apply -auto-approve -input=false
 
+      # ✅ Capture and sanitize Terraform outputs
       - name: Capture Terraform Outputs
         id: tf_output
         working-directory: environment/${{ env.ENVIRONMENT }}
         run: |
-          echo "rds_endpoint=$(terraform output -raw rds_endpoint)" >> $GITHUB_OUTPUT
-          echo "db_name=$(terraform output -raw db_name)" >> $GITHUB_OUTPUT
-          echo "asg_name=$(terraform output -raw asg_name)" >> $GITHUB_OUTPUT
-          echo "alb_dns=$(terraform output -raw alb_dns)" >> $GITHUB_OUTPUT
+          RDS_EP=$(terraform output -raw rds_endpoint | awk -F: '{print $1}')
+          DB_NAME=$(terraform output -raw db_name)
+          ASG_NAME=$(terraform output -raw asg_name)
+          ALB_DNS=$(terraform output -raw alb_dns)
 
+          echo "rds_endpoint=$RDS_EP" >> $GITHUB_OUTPUT
+          echo "db_name=$DB_NAME" >> $GITHUB_OUTPUT
+          echo "asg_name=$ASG_NAME" >> $GITHUB_OUTPUT
+          echo "alb_dns=$ALB_DNS" >> $GITHUB_OUTPUT
+
+          echo "✅ RDS Endpoint: $RDS_EP"
+          echo "✅ DB Name: $DB_NAME"
+          echo "✅ ASG Name: $ASG_NAME"
+          echo "✅ ALB DNS: $ALB_DNS"
+
+      # ✅ Deploy Database Schema
       - name: Deploy RDS Database Schema
         env:
           DB_HOST: ${{ steps.tf_output.outputs.rds_endpoint }}
           DB_NAME: ${{ steps.tf_output.outputs.db_name }}
           DB_USER: ${{ secrets.DB_USER }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-        run: bash scripts/deploy-rds.sh
+        run: |
+          echo "Using Host: $DB_HOST"
+          echo "Using DB Name: $DB_NAME"
+          bash scripts/deploy-rds.sh
 
-      - name: Get EC2 Public IPs from ASG
+      # ✅ Fetch EC2 Instances under ASG
+      - name: Get EC2 Instances
         id: ec2
         run: |
           ASG="${{ steps.tf_output.outputs.asg_name }}"
-          INSTANCE_IDS=$(aws autoscaling describe-auto-scaling-groups \
+          INSTANCES=$(aws autoscaling describe-auto-scaling-groups \
             --auto-scaling-group-names "$ASG" \
-            --query 'AutoScalingGroups[0].Instances[].InstanceId' \
+            --query "AutoScalingGroups[0].Instances[].InstanceId" \
             --output text)
 
-          EC2_IPS=$(aws ec2 describe-instances \
-            --instance-ids $INSTANCE_IDS \
-            --query 'Reservations[].Instances[].PublicIpAddress' \
+          IPS=$(aws ec2 describe-instances \
+            --instance-ids $INSTANCES \
+            --query "Reservations[].Instances[].PublicIpAddress" \
             --output text)
 
-          echo "EC2_IPS=$EC2_IPS" >> $GITHUB_OUTPUT
-          echo "EC2 Hosts: $EC2_IPS"
+          echo "EC2_IPS=$IPS" >> $GITHUB_OUTPUT
+          echo "✅ EC2 Instances: $IPS"
 
-      - name: Deploy Backend on EC2
+      # ✅ Deploy Backend on EC2 Instances
+      - name: Deploy Backend
         env:
           DB_HOST: ${{ steps.tf_output.outputs.rds_endpoint }}
           DB_NAME: ${{ steps.tf_output.outputs.db_name }}
@@ -90,38 +106,41 @@ jobs:
 
           for ip in ${{ steps.ec2.outputs.EC2_IPS }}; do
             echo "Deploying backend on $ip..."
-            ssh-keyscan -H $ip >> ~/.ssh/known_hosts 2>/dev/null || true
+            ssh-keyscan -H "$ip" >> ~/.ssh/known_hosts 2>/dev/null || true
             ssh -i ~/.ssh/key.pem ec2-user@$ip \
               "export DB_HOST=$DB_HOST DB_USER=$DB_USER DB_PASSWORD=$DB_PASSWORD DB_NAME=$DB_NAME SECRET_KEY=$SECRET_KEY; \
                bash -s" < scripts/deploy-ec2.sh
           done
 
-      - name: Deploy Frontend to S3 & CloudFront
+      # ✅ Deploy Frontend
+      - name: Deploy Frontend to S3 + CloudFront
         env:
           PROJECT_NAME: ${{ env.PROJECT_NAME }}
           ENVIRONMENT: ${{ env.ENVIRONMENT }}
-        run: bash scripts/deploy-frontend.sh
+        run: |
+          bash scripts/deploy-frontend.sh
 
-      - name: Health Check Instance(s)
+      # ✅ Final Health Check
+      - name: Health Check
         run: |
           for ip in ${{ steps.ec2.outputs.EC2_IPS }}; do
-            echo "Checking health at $ip:5000"
+            echo "Checking health at $ip:5000..."
             for i in {1..30}; do
-              if curl -sf http://$ip:5000/health; then
+              if curl -sf "http://$ip:5000/health"; then
                 echo "✅ Healthy: $ip"
                 break
               fi
+              sleep 3
               if [ $i -eq 30 ]; then
                 echo "❌ Health check failed for $ip"
                 exit 1
               fi
-              sleep 2
             done
           done
 
+      # ✅ Summary Output
       - name: Deployment Summary
         run: |
-          echo "✅ Deployment Complete"
-          echo "ALB DNS: ${{ steps.tf_output.outputs.alb_dns }}"
-          echo "RDS Endpoint: ${{ steps.tf_output.outputs.rds_endpoint }}"
-          echo "Time: $(date)"
+          echo "🚀 Deployment Success!"
+          echo "🌍 App URL: http://${{ steps.tf_output.outputs.alb_dns }}/"
+          echo "🗄️ RDS: ${{ steps.tf_output.outputs.rds_endpoint }}"
