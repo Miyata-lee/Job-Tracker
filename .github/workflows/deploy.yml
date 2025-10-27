@@ -61,7 +61,9 @@ jobs:
           cd environment/${{ env.ENVIRONMENT }}
           RDS_ENDPOINT=$(terraform output -raw rds_endpoint)
           DB_NAME=$(terraform output -raw rds_database_name)
-          echo "endpoint=$RDS_ENDPOINT" >> $GITHUB_OUTPUT
+          echo "endpoint<<EOF" >> $GITHUB_OUTPUT
+          echo "$RDS_ENDPOINT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
           echo "db_name=$DB_NAME" >> $GITHUB_OUTPUT
 
       - name: Get ALB DNS
