@@ -41,57 +41,45 @@ jobs:
       - name: Terraform Plan
         env:
           TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
-          TF_VAR_ec2_key_pair_name: ${{ secrets.EC2_KEY_PAIR }}
+          TF_VAR_ec2_key_pair_name: keyweb
         run: |
           cd environment/${{ env.ENVIRONMENT }}
           terraform plan -out=tfplan
-          
 
       - name: Terraform Apply
         env:
           TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
-          TF_VAR_ec2_key_pair_name: ${{ secrets.EC2_KEY_PAIR }}
+          TF_VAR_ec2_key_pair_name: keyweb
         run: |
           cd environment/${{ env.ENVIRONMENT }}
           terraform apply -auto-approve tfplan
 
-      - name: Get RDS Endpoint
-        id: rds
+      - name: Get Terraform Outputs
+        id: tf_outputs
         run: |
           cd environment/${{ env.ENVIRONMENT }}
-          RDS_ENDPOINT=$(terraform output -raw rds_endpoint)
-          DB_NAME=$(terraform output -raw rds_database_name)
-          echo "endpoint<<EOF" >> $GITHUB_OUTPUT
-          echo "$RDS_ENDPOINT" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-          echo "db_name=$DB_NAME" >> $GITHUB_OUTPUT
-
-      - name: Get ALB DNS
-        id: alb
-        run: |
-          cd environment/${{ env.ENVIRONMENT }}
-          ALB_DNS=$(terraform output -raw alb_dns_name)
-          echo "dns=$ALB_DNS" >> $GITHUB_OUTPUT
-
-      - name: Get ASG Name
-        id: asg
-        run: |
-          cd environment/${{ env.ENVIRONMENT }}
-          ASG_NAME=$(terraform output -raw auto_scaling_group_name)
-          echo "name=$ASG_NAME" >> $GITHUB_OUTPUT
+          terraform output -raw rds_endpoint > /tmp/rds_endpoint.txt
+          terraform output -raw rds_database_name > /tmp/db_name.txt
+          terraform output -raw alb_dns_name > /tmp/alb_dns.txt
+          terraform output -raw auto_scaling_group_name > /tmp/asg_name.txt
+          
+          echo "rds_endpoint=$(cat /tmp/rds_endpoint.txt)" >> $GITHUB_OUTPUT
+          echo "db_name=$(cat /tmp/db_name.txt)" >> $GITHUB_OUTPUT
+          echo "alb_dns=$(cat /tmp/alb_dns.txt)" >> $GITHUB_OUTPUT
+          echo "asg_name=$(cat /tmp/asg_name.txt)" >> $GITHUB_OUTPUT
 
       - name: Deploy RDS Database
         env:
-          DB_HOST: ${{ steps.rds.outputs.endpoint }}
+          DB_HOST: ${{ steps.tf_outputs.outputs.rds_endpoint }}
           DB_USER: ${{ secrets.DB_USER }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-          DB_NAME: ${{ steps.rds.outputs.db_name }}
+          DB_NAME: ${{ steps.tf_outputs.outputs.db_name }}
         run: bash scripts/deploy-rds.sh
 
       - name: Get EC2 Instances
         id: ec2
         env:
-          ASG_NAME: ${{ steps.asg.outputs.name }}
+          ASG_NAME: ${{ steps.tf_outputs.outputs.asg_name }}
         run: |
           IPS=$(aws autoscaling describe-auto-scaling-groups \
             --auto-scaling-group-names "$ASG_NAME" \
@@ -107,10 +95,10 @@ jobs:
 
       - name: Deploy EC2 Application
         env:
-          DB_HOST: ${{ steps.rds.outputs.endpoint }}
+          DB_HOST: ${{ steps.tf_outputs.outputs.rds_endpoint }}
           DB_USER: ${{ secrets.DB_USER }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-          DB_NAME: ${{ steps.rds.outputs.db_name }}
+          DB_NAME: ${{ steps.tf_outputs.outputs.db_name }}
           SECRET_KEY: ${{ secrets.SECRET_KEY }}
           EC2_KEY: ${{ secrets.EC2_PRIVATE_KEY }}
           GITHUB_REPO: ${{ github.repository }}
@@ -140,7 +128,7 @@ jobs:
           ENVIRONMENT: ${{ env.ENVIRONMENT }}
         run: bash scripts/deploy-frontend.sh
 
-      - name: Health Check
+      - name: Health Check EC2
         env:
           EC2_IPS: ${{ steps.ec2.outputs.ips }}
         run: |
@@ -161,9 +149,10 @@ jobs:
 
       - name: Deployment Summary
         env:
-          ALB_DNS: ${{ steps.alb.outputs.dns }}
+          ALB_DNS: ${{ steps.tf_outputs.outputs.alb_dns }}
+          RDS_ENDPOINT: ${{ steps.tf_outputs.outputs.rds_endpoint }}
         run: |
           echo "✓ Deployment Complete!"
           echo "ALB DNS: $ALB_DNS"
-          echo "RDS Endpoint: ${{ steps.rds.outputs.endpoint }}"
+          echo "RDS Endpoint: $RDS_ENDPOINT"
           echo "Timestamp: $(date)"
