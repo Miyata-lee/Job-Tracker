@@ -13,6 +13,9 @@ crash.*.log
 # Sensitive files
 terraform.tfvars
 *.auto.tfvars
+*.pem
+.env
+.env.txt
 
 # IDE/editor settings
 .vscode/

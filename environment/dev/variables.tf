@@ -53,6 +53,10 @@ variable "instance_type" {
   default     = "t2.micro"
 }
 
+variable "ec2_key_pair_name" {
+  description = "EC2 Key Pair name"
+  type        = string
+}
 variable "desired_capacity" {
   description = "Desired number of EC2 instances in Auto Scaling Group"
   type        = number

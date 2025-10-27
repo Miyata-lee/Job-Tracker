@@ -28,6 +28,11 @@ variable "max_capacity" {
   type        = number
 }
 
+variable "ec2_key_pair_name" {
+  description = "EC2 Key Pair name for SSH access"
+  type        = string
+}
+
 variable "public_subnet_1_id" {
   description = "Public subnet 1 ID (us-east-1a)"
   type        = string
