@@ -33,6 +33,7 @@ jobs:
           terraform_version: 1.5.0
 
       - name: Terraform Init & Apply
+        id: tf_apply
         working-directory: environment/${{ env.ENVIRONMENT }}
         env:
           TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
@@ -41,18 +42,14 @@ jobs:
           terraform init
           terraform apply -auto-approve
 
-      - name: Deploy RDS Database
-        env:
-            DB_HOST: ${{ steps.tf_outputs.outputs.rds_endpoint }}
-            DB_NAME: ${{ steps.tf_outputs.outputs.db_name }}
-            DB_USER: ${{ secrets.DB_USER }}
-            DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+      - name: Capture Terraform Outputs
+        id: tf_output
+        working-directory: environment/${{ env.ENVIRONMENT }}
         run: |
-            echo "Using DB Host: $DB_HOST"
-            echo "Using DB Name: $DB_NAME"
-            bash scripts/deploy-rds.sh
-
-      
+          echo "rds_endpoint=$(terraform output -raw rds_endpoint)" >> $GITHUB_OUTPUT
+          echo "db_name=$(terraform output -raw db_name)" >> $GITHUB_OUTPUT
+          echo "asg_name=$(terraform output -raw asg_name)" >> $GITHUB_OUTPUT
+          echo "alb_dns=$(terraform output -raw alb_dns)" >> $GITHUB_OUTPUT
 
       - name: Deploy RDS Database Schema
         env:
