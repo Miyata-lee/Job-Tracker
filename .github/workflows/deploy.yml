@@ -42,13 +42,28 @@ jobs:
           terraform apply -auto-approve
 
       - name: Get Terraform Outputs
-        id: tf_output
+        id: tf_outputs
         working-directory: environment/${{ env.ENVIRONMENT }}
         run: |
-          echo "rds_endpoint=$(terraform output -raw rds_endpoint)" >> $GITHUB_OUTPUT
-          echo "db_name=$(terraform output -raw rds_database_name)" >> $GITHUB_OUTPUT
-          echo "alb_dns=$(terraform output -raw alb_dns_name)" >> $GITHUB_OUTPUT
-          echo "asg_name=$(terraform output -raw auto_scaling_group_name)" >> $GITHUB_OUTPUT
+          echo "rds_endpoint<<EOF" >> $GITHUB_OUTPUT
+          terraform output -raw rds_endpoint >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          echo "db_name<<EOF" >> $GITHUB_OUTPUT
+          terraform output -raw rds_database_name >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          echo "alb_dns<<EOF" >> $GITHUB_OUTPUT
+          terraform output -raw alb_dns_name >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          echo "asg_name<<EOF" >> $GITHUB_OUTPUT
+          terraform output -raw auto_scaling_group_name >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          echo "✅ Outputs saved successfully!"
+
+      
 
       - name: Deploy RDS Database Schema
         env:
