@@ -1,0 +1,160 @@
+name: Deploy JobTracker
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-1
+  PROJECT_NAME: jobtracker
+  ENVIRONMENT: dev
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::YOUR_AWS_ACCOUNT_ID:role/github-jobtracker-role
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.5.0
+
+      - name: Terraform Init
+        run: |
+          cd environment/${{ env.ENVIRONMENT }}
+          terraform init
+
+      - name: Terraform Plan
+        run: |
+          cd environment/${{ env.ENVIRONMENT }}
+          terraform plan -out=tfplan
+
+      - name: Terraform Apply
+        run: |
+          cd environment/${{ env.ENVIRONMENT }}
+          terraform apply -auto-approve tfplan
+
+      - name: Get RDS Endpoint
+        id: rds
+        run: |
+          cd environment/${{ env.ENVIRONMENT }}
+          RDS_ENDPOINT=$(terraform output -raw rds_endpoint)
+          DB_NAME=$(terraform output -raw rds_database_name)
+          echo "endpoint=$RDS_ENDPOINT" >> $GITHUB_OUTPUT
+          echo "db_name=$DB_NAME" >> $GITHUB_OUTPUT
+
+      - name: Get ALB DNS
+        id: alb
+        run: |
+          cd environment/${{ env.ENVIRONMENT }}
+          ALB_DNS=$(terraform output -raw alb_dns_name)
+          echo "dns=$ALB_DNS" >> $GITHUB_OUTPUT
+
+      - name: Get ASG Name
+        id: asg
+        run: |
+          cd environment/${{ env.ENVIRONMENT }}
+          ASG_NAME=$(terraform output -raw auto_scaling_group_name)
+          echo "name=$ASG_NAME" >> $GITHUB_OUTPUT
+
+      - name: Deploy RDS Database
+        env:
+          DB_HOST: ${{ steps.rds.outputs.endpoint }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_NAME: ${{ steps.rds.outputs.db_name }}
+        run: bash scripts/deploy-rds.sh
+
+      - name: Get EC2 Instances
+        id: ec2
+        env:
+          ASG_NAME: ${{ steps.asg.outputs.name }}
+        run: |
+          IPS=$(aws autoscaling describe-auto-scaling-groups \
+            --auto-scaling-group-names "$ASG_NAME" \
+            --query 'AutoScalingGroups[0].Instances[].InstanceId' \
+            --output text)
+          
+          EC2_IPS=$(aws ec2 describe-instances \
+            --instance-ids $IPS \
+            --query 'Reservations[].Instances[].PublicIpAddress' \
+            --output text)
+          
+          echo "ips=$EC2_IPS" >> $GITHUB_OUTPUT
+
+      - name: Deploy EC2 Application
+        env:
+          DB_HOST: ${{ steps.rds.outputs.endpoint }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_NAME: ${{ steps.rds.outputs.db_name }}
+          SECRET_KEY: ${{ secrets.SECRET_KEY }}
+          EC2_KEY: ${{ secrets.EC2_PRIVATE_KEY }}
+          GITHUB_REPO: ${{ github.repository }}
+          BRANCH: ${{ github.ref_name }}
+          EC2_IPS: ${{ steps.ec2.outputs.ips }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$EC2_KEY" > ~/.ssh/key.pem
+          chmod 600 ~/.ssh/key.pem
+          
+          for ip in $EC2_IPS; do
+            echo "Deploying to $ip..."
+            ssh-keyscan -H $ip >> ~/.ssh/known_hosts 2>/dev/null || true
+            
+            ssh -i ~/.ssh/key.pem ec2-user@$ip \
+              "export DB_HOST=$DB_HOST && \
+               export DB_USER=$DB_USER && \
+               export DB_PASSWORD=$DB_PASSWORD && \
+               export DB_NAME=$DB_NAME && \
+               export SECRET_KEY=$SECRET_KEY && \
+               curl -fsSL https://raw.githubusercontent.com/$GITHUB_REPO/$BRANCH/scripts/deploy-ec2.sh | bash"
+          done
+
+      - name: Deploy Frontend to S3
+        env:
+          PROJECT_NAME: ${{ env.PROJECT_NAME }}
+          ENVIRONMENT: ${{ env.ENVIRONMENT }}
+        run: bash scripts/deploy-frontend.sh
+
+      - name: Health Check
+        env:
+          EC2_IPS: ${{ steps.ec2.outputs.ips }}
+        run: |
+          for ip in $EC2_IPS; do
+            echo "Health checking $ip:5000..."
+            for i in {1..30}; do
+              if curl -f http://$ip:5000/health 2>/dev/null; then
+                echo "✓ $ip is healthy"
+                break
+              fi
+              if [ $i -eq 30 ]; then
+                echo "✗ Health check failed on $ip"
+                exit 1
+              fi
+              sleep 2
+            done
+          done
+
+      - name: Deployment Summary
+        env:
+          ALB_DNS: ${{ steps.alb.outputs.dns }}
+        run: |
+          echo "✓ Deployment Complete!"
+          echo "ALB DNS: $ALB_DNS"
+          echo "RDS Endpoint: ${{ steps.rds.outputs.endpoint }}"
+          echo "Timestamp: $(date)"
