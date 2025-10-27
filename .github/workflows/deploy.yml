@@ -34,75 +34,91 @@ jobs:
           terraform_version: 1.5.0
 
       - name: Terraform Init
-        working-directory: environment/${{ env.ENVIRONMENT }}
-        run: terraform init
+        run: |
+          cd environment/${{ env.ENVIRONMENT }}
+          terraform init
 
-      - name: Terraform Apply
-        working-directory: environment/${{ env.ENVIRONMENT }}
+      - name: Terraform Plan
         env:
           TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
           TF_VAR_ec2_key_pair_name: keyweb
-        run: terraform apply -auto-approve
-
-      - name: Save Terraform Outputs to files
-        working-directory: environment/${{ env.ENVIRONMENT }}
         run: |
+          cd environment/${{ env.ENVIRONMENT }}
+          terraform plan -out=tfplan
+
+      - name: Terraform Apply
+        env:
+          TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
+          TF_VAR_ec2_key_pair_name: keyweb
+        run: |
+          cd environment/${{ env.ENVIRONMENT }}
+          terraform apply -auto-approve tfplan
+
+      - name: Get Terraform Outputs
+        id: tf_outputs
+        run: |
+          cd environment/${{ env.ENVIRONMENT }}
+          
           terraform output -raw rds_endpoint > /tmp/rds_endpoint.txt
           terraform output -raw rds_database_name > /tmp/db_name.txt
           terraform output -raw alb_dns_name > /tmp/alb_dns.txt
           terraform output -raw auto_scaling_group_name > /tmp/asg_name.txt
+          
+          cat /tmp/rds_endpoint.txt
+          cat /tmp/db_name.txt
+          cat /tmp/alb_dns.txt
+          cat /tmp/asg_name.txt
 
-          echo "✅ Terraform outputs saved"
-
-      - name: Deploy RDS Database Schema
+      - name: Deploy RDS Database
         run: |
-          DB_HOST=$(cat /tmp/rds_endpoint.txt | awk -F: '{print $1}')
+          DB_HOST=$(cat /tmp/rds_endpoint.txt)
           DB_NAME=$(cat /tmp/db_name.txt)
           export DB_HOST DB_NAME
           export DB_USER=${{ secrets.DB_USER }}
           export DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-
-          echo "Using RDS Endpoint: $DB_HOST"
           bash scripts/deploy-rds.sh
 
       - name: Get EC2 Instances
         id: ec2
         run: |
           ASG_NAME=$(cat /tmp/asg_name.txt)
-          echo "Using ASG: $ASG_NAME"
-
-          INSTANCE_IDS=$(aws autoscaling describe-auto-scaling-groups \
+          IPS=$(aws autoscaling describe-auto-scaling-groups \
             --auto-scaling-group-names "$ASG_NAME" \
             --query 'AutoScalingGroups[0].Instances[].InstanceId' \
             --output text)
-
+          
           EC2_IPS=$(aws ec2 describe-instances \
-            --instance-ids $INSTANCE_IDS \
+            --instance-ids $IPS \
             --query 'Reservations[].Instances[].PublicIpAddress' \
             --output text)
-
+          
           echo "$EC2_IPS" > /tmp/ec2_ips.txt
-          echo "EC2 Hosts: $EC2_IPS"
+          cat /tmp/ec2_ips.txt
 
-      - name: Deploy Backend to EC2
+      - name: Deploy EC2 Application
         run: |
-          DB_HOST=$(cat /tmp/rds_endpoint.txt | awk -F: '{print $1}')
+          DB_HOST=$(cat /tmp/rds_endpoint.txt)
           DB_NAME=$(cat /tmp/db_name.txt)
           EC2_IPS=$(cat /tmp/ec2_ips.txt)
-
+          
           mkdir -p ~/.ssh
           echo "${{ secrets.EC2_PRIVATE_KEY }}" > ~/.ssh/key.pem
           chmod 600 ~/.ssh/key.pem
-
+          
           for ip in $EC2_IPS; do
-            echo "Deploying backend on: $ip"
+            echo "Deploying to $ip..."
             ssh-keyscan -H $ip >> ~/.ssh/known_hosts 2>/dev/null || true
+            
             ssh -i ~/.ssh/key.pem ec2-user@$ip \
-              "export DB_HOST=$DB_HOST DB_USER=${{ secrets.DB_USER }} DB_PASSWORD=${{ secrets.DB_PASSWORD }} DB_NAME=$DB_NAME SECRET_KEY=${{ secrets.SECRET_KEY }}; \
-               bash -s" < scripts/deploy-ec2.sh
+              "export DB_HOST=$DB_HOST && \
+               export DB_USER=${{ secrets.DB_USER }} && \
+               export DB_PASSWORD=${{ secrets.DB_PASSWORD }} && \
+               export DB_NAME=$DB_NAME && \
+               export SECRET_KEY=${{ secrets.SECRET_KEY }} && \
+               curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/${{ github.ref_name }}/scripts/deploy-ec2.sh | bash"
           done
 
-      - name: Deploy Frontend to S3 & CloudFront
+      - name: Deploy Frontend to S3
         env:
           PROJECT_NAME: ${{ env.PROJECT_NAME }}
           ENVIRONMENT: ${{ env.ENVIRONMENT }}
@@ -112,14 +128,14 @@ jobs:
         run: |
           EC2_IPS=$(cat /tmp/ec2_ips.txt)
           for ip in $EC2_IPS; do
-            echo "Checking http://$ip:5000/health"
+            echo "Health checking $ip:5000..."
             for i in {1..30}; do
-              if curl -sf http://$ip:5000/health; then
-                echo "✅ Healthy: $ip"
+              if curl -f http://$ip:5000/health 2>/dev/null; then
+                echo "✓ $ip is healthy"
                 break
               fi
               if [ $i -eq 30 ]; then
-                echo "❌ Health check failed for $ip"
+                echo "✗ Health check failed on $ip"
                 exit 1
               fi
               sleep 2
@@ -128,7 +144,7 @@ jobs:
 
       - name: Deployment Summary
         run: |
-          echo "✅ Deployment Complete"
+          echo "✓ Deployment Complete!"
           echo "ALB DNS: $(cat /tmp/alb_dns.txt)"
-          echo "RDS: $(cat /tmp/rds_endpoint.txt | awk -F: '{print $1}')"
+          echo "RDS Endpoint: $(cat /tmp/rds_endpoint.txt)"
           echo "Timestamp: $(date)"
