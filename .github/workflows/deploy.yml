@@ -71,16 +71,21 @@ jobs:
 
       - name: Deploy RDS Database
         run: |
-          cd environment/${{ env.ENVIRONMENT }}
-          RDS_HOST=$(terraform output -raw rds_endpoint | cut -d: -f1)
-          DB_NAME=$(terraform output -raw rds_database_name)
-          cd - 
-          
-          export DB_HOST=$RDS_HOST
-          export DB_NAME=$DB_NAME
-          export DB_USER=${{ secrets.DB_USER }}
-          export DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-          bash scripts/deploy-rds.sh
+            cd environment/${{ env.ENVIRONMENT }}
+            RDS_HOST=$(terraform output -raw rds_endpoint | cut -d: -f1)
+            DB_NAME=$(terraform output -raw rds_database_name)
+            
+            # Test connection first
+            echo "Testing connection to $RDS_HOST..."
+            mysql -h $RDS_HOST -u ${{ secrets.DB_USER }} -p${{ secrets.DB_PASSWORD }} -e "SELECT 1" || exit 1
+            
+            # If connection works, run the script
+            cd ../..
+            export DB_HOST=$RDS_HOST
+            export DB_NAME=$DB_NAME
+            export DB_USER=${{ secrets.DB_USER }}
+            export DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+            bash scripts/deploy-rds.sh
 
       - name: Get EC2 Instances
         id: ec2
