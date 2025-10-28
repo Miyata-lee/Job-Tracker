@@ -34,46 +34,50 @@ jobs:
       - name: Get Terraform Outputs
         run: |
           cd environment/${{ env.ENVIRONMENT }}
-          terraform init
-          terraform output -raw rds_endpoint > /tmp/rds_endpoint.txt
-          terraform output -raw rds_database_name > /tmp/db_name.txt
-          terraform output -raw auto_scaling_group_name > /tmp/asg_name.txt
+          terraform init -no-color > /dev/null 2>&1
+          terraform output -raw rds_endpoint 2>/dev/null > /tmp/rds_endpoint.txt
+          terraform output -raw rds_database_name 2>/dev/null > /tmp/db_name.txt
+          terraform output -raw auto_scaling_group_name 2>/dev/null > /tmp/asg_name.txt
+          
+          echo "RDS Endpoint: $(cat /tmp/rds_endpoint.txt)"
+          echo "DB Name: $(cat /tmp/db_name.txt)"
+          echo "ASG Name: $(cat /tmp/asg_name.txt)"
 
-      - name: Wait for EC2 Instances
+      - name: Wait for EC2 Instances to Launch
         run: |
-          ASG_NAME=$(cat /tmp/asg_name.txt | tail -1)
-          echo "Waiting for instances in ASG: $ASG_NAME..."
+          ASG_NAME=$(cat /tmp/asg_name.txt | xargs)
+          echo "Waiting for instances in ASG: $ASG_NAME"
+          
           for i in {1..60}; do
-            COUNT=$(aws autoscaling describe-auto-scaling-groups \
+            INSTANCES=$(aws autoscaling describe-auto-scaling-groups \
               --auto-scaling-group-names "$ASG_NAME" \
-              --query 'AutoScalingGroups[0].Instances | length(@)' \
-              --output text)
-            if [ "$COUNT" -gt 0 ]; then
-              echo "✓ Found $COUNT instances"
+              --query 'AutoScalingGroups[0].Instances[].InstanceId' \
+              --output text 2>/dev/null || echo "")
+            
+            if [ -n "$INSTANCES" ]; then
+              echo "✓ Instances found: $INSTANCES"
+              echo "$INSTANCES" > /tmp/instance_ids.txt
               break
             fi
+            
             if [ $i -eq 60 ]; then
               echo "✗ Timeout waiting for instances"
               exit 1
             fi
+            
             echo "Waiting... ($i/60)"
             sleep 2
           done
 
-
       - name: Get EC2 Instance IPs
         run: |
-          ASG_NAME=$(cat /tmp/asg_name.txt | tail -1)
-          INSTANCE_IDS=$(aws autoscaling describe-auto-scaling-groups \
-            --auto-scaling-group-names "$ASG_NAME" \
-            --query 'AutoScalingGroups[0].Instances[].InstanceId' \
-            --output text)
-          
+          INSTANCE_IDS=$(cat /tmp/instance_ids.txt)
           EC2_IPS=$(aws ec2 describe-instances \
             --instance-ids $INSTANCE_IDS \
             --query 'Reservations[].Instances[].PublicIpAddress' \
             --output text)
           
+          echo "EC2 IPs: $EC2_IPS"
           echo "$EC2_IPS" > /tmp/ec2_ips.txt
 
       - name: Deploy RDS + EC2 Application
