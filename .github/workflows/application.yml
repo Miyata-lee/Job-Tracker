@@ -72,29 +72,39 @@ jobs:
 
       - name: Deploy RDS + EC2 Application
         run: |
-          DB_HOST=$(cat /tmp/rds_endpoint.txt | cut -d: -f1)
-          DB_NAME=$(cat /tmp/db_name.txt)
-          EC2_IPS=$(cat /tmp/ec2_ips.txt)
-          
-          mkdir -p ~/.ssh
-          echo "${{ secrets.EC2_PRIVATE_KEY }}" > ~/.ssh/key.pem
-          chmod 600 ~/.ssh/key.pem
-          
-          for ip in $EC2_IPS; do
-            echo "Deploying to $ip..."
-            ssh-keyscan -H $ip >> ~/.ssh/known_hosts 2>/dev/null || true
+            DB_HOST=$(cat /tmp/rds_endpoint.txt | cut -d: -f1)
+            DB_NAME=$(cat /tmp/db_name.txt)
+            EC2_IPS=$(cat /tmp/ec2_ips.txt)
             
-            # Deploy RDS + EC2 in one SSH session
-            ssh -i ~/.ssh/key.pem ec2-user@$ip \
-              "export DB_HOST=$DB_HOST && \
-               export DB_USER=${{ secrets.DB_USER }} && \
-               export DB_PASSWORD=${{ secrets.DB_PASSWORD }} && \
-               export DB_NAME=$DB_NAME && \
-               export SECRET_KEY=${{ secrets.SECRET_KEY }} && \
-               curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/${{ github.ref_name }}/scripts/deploy-rds.sh | bash && \
-               curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/${{ github.ref_name }}/scripts/deploy-ec2.sh | bash"
-          done
-
+            mkdir -p ~/.ssh
+            echo "${{ secrets.EC2_PRIVATE_KEY }}" > ~/.ssh/key.pem
+            chmod 600 ~/.ssh/key.pem
+            
+            for ip in $EC2_IPS; do
+              echo "Waiting for SSH on $ip..."
+              for i in {1..60}; do
+                if ssh-keyscan -H $ip >> ~/.ssh/known_hosts 2>/dev/null; then
+                  echo "✓ SSH ready on $ip"
+                  break
+                fi
+                if [ $i -eq 60 ]; then
+                  echo "✗ SSH timeout on $ip"
+                  exit 1
+                fi
+                sleep 2
+              done
+              
+              echo "Deploying to $ip..."
+              ssh -i ~/.ssh/key.pem -o ConnectTimeout=10 ec2-user@$ip \
+                "export DB_HOST=$DB_HOST && \
+                export DB_USER=${{ secrets.DB_USER }} && \
+                export DB_PASSWORD=${{ secrets.DB_PASSWORD }} && \
+                export DB_NAME=$DB_NAME && \
+                export SECRET_KEY=${{ secrets.SECRET_KEY }} && \
+                curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/${{ github.ref_name }}/scripts/deploy-rds.sh | bash && \
+                curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/${{ github.ref_name }}/scripts/deploy-ec2.sh | bash"
+            done
+            
       - name: Deploy Frontend to S3
         env:
           PROJECT_NAME: ${{ env.PROJECT_NAME }}
