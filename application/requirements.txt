@@ -1,7 +1,5 @@
-# File: requirements.txt
-# JobTracker Python Dependencies
-
 
 Flask==2.2.5
 mysql-connector-python==8.0.33
 Werkzeug==2.2.3
+python-dotenv==0.21.0
