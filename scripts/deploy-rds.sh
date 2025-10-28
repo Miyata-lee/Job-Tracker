@@ -7,9 +7,13 @@ set -e
 
 # Configuration
 
-DB_HOST=$(echo "$DB_HOST" | cut -d: -f1)
-DB_USER="${DB_USER}"
-DB_PASSWORD="${DB_PASSWORD}"
+DB_HOST="$(echo ${DB_HOST} | tr -d '\n')"
+DB_USER="$(echo ${DB_USER} | tr -d '\n')"
+DB_PASSWORD="$(echo ${DB_PASSWORD} | tr -d '\n')"
+# Debug: show what we got
+echo "DEBUG: DB_HOST=$DB_HOST"
+echo "DEBUG: DB_USER=$DB_USER"
+echo "DEBUG: DB_PASSWORD=$DB_PASSWORD"
 DB_NAME="jobtracker"
 LOG_FILE="/tmp/jobtracker-rds-deploy.log"
 
