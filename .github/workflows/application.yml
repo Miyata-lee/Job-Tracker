@@ -43,50 +43,32 @@ jobs:
           echo "DB Name: $(cat /tmp/db_name.txt)"
           echo "ASG Name: $(cat /tmp/asg_name.txt)"
 
-      - name: Wait for EC2 Instances to Launch
-        run: |
-          ASG_NAME=$(cat /tmp/asg_name.txt | xargs)
-          echo "Waiting for instances in ASG: $ASG_NAME"
-          
-          for i in {1..60}; do
-            INSTANCES=$(aws autoscaling describe-auto-scaling-groups \
-              --auto-scaling-group-names "$ASG_NAME" \
-              --query 'AutoScalingGroups[0].Instances[].InstanceId' \
-              --output text 2>/dev/null || echo "")
-            
-            if [ -n "$INSTANCES" ]; then
-              echo "✓ Instances found: $INSTANCES"
-              echo "$INSTANCES" > /tmp/instance_ids.txt
-              break
-            fi
-            
-            if [ $i -eq 60 ]; then
-              echo "✗ Timeout waiting for instances"
-              exit 1
-            fi
-            
-            echo "Waiting... ($i/60)"
-            sleep 2
-          done
-
       - name: Get EC2 Instance IPs
         run: |
-            ASG_NAME="jobtracker-asg-dev"
-            
-            INSTANCE_IDS=$(aws autoscaling describe-auto-scaling-groups \
-              --auto-scaling-group-names "$ASG_NAME" \
-              --query 'AutoScalingGroups[0].Instances[].InstanceId' \
-              --output text)
-            
-            echo "Instance IDs: $INSTANCE_IDS"
-            
-            EC2_IPS=$(aws ec2 describe-instances \
-              --instance-ids $INSTANCE_IDS \
-              --query 'Reservations[].Instances[].PublicIpAddress' \
-              --output text)
-            
-            echo "EC2 IPs: $EC2_IPS"
-            echo "$EC2_IPS" > /tmp/ec2_ips.txt
+          # Use hardcoded ASG name to avoid terraform output issues
+          ASG_NAME="jobtracker-asg-dev"
+          
+          echo "Fetching instances from ASG: $ASG_NAME"
+          
+          INSTANCE_IDS=$(aws autoscaling describe-auto-scaling-groups \
+            --auto-scaling-group-names "$ASG_NAME" \
+            --query 'AutoScalingGroups[0].Instances[].InstanceId' \
+            --output text)
+          
+          if [ -z "$INSTANCE_IDS" ]; then
+            echo "✗ No instances found in ASG"
+            exit 1
+          fi
+          
+          echo "Instance IDs: $INSTANCE_IDS"
+          
+          EC2_IPS=$(aws ec2 describe-instances \
+            --instance-ids $INSTANCE_IDS \
+            --query 'Reservations[].Instances[].PublicIpAddress' \
+            --output text)
+          
+          echo "EC2 IPs: $EC2_IPS"
+          echo "$EC2_IPS" > /tmp/ec2_ips.txt
 
       - name: Deploy RDS + EC2 Application
         run: |
