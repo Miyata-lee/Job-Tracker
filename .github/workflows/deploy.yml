@@ -28,6 +28,10 @@ jobs:
           role-to-assume: arn:aws:iam::107411014674:role/github-jobtracker-role
           aws-region: ${{ env.AWS_REGION }}
 
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.5.0
 
       - name: Terraform Init
         run: |
@@ -67,20 +71,20 @@ jobs:
 
       - name: Deploy RDS Database
         run: |
-              cd environment/${{ env.ENVIRONMENT }}
-              which terraform
-              terraform output -raw rds_endpoint > /tmp/rds_host.txt
-              terraform output -raw rds_database_name > /tmp/db_name.txt
-              
-              RDS_HOST=$(cat /tmp/rds_host.txt | cut -d: -f1)
-              DB_NAME=$(cat /tmp/db_name.txt)
-              
-              cd /home/runner/work/Job-Tracker/Job-Tracker
-              export DB_HOST=$RDS_HOST
-              export DB_NAME=$DB_NAME
-              export DB_USER=${{ secrets.DB_USER }}
-              export DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-              bash scripts/deploy-rds.sh
+            cd environment/${{ env.ENVIRONMENT }}
+            which terraform
+            terraform output -raw rds_endpoint > /tmp/rds_host.txt
+            terraform output -raw rds_database_name > /tmp/db_name.txt
+            
+            RDS_HOST=$(cat /tmp/rds_host.txt | cut -d: -f1)
+            DB_NAME=$(cat /tmp/db_name.txt)
+            
+            cd /home/runner/work/Job-Tracker/Job-Tracker
+            export DB_HOST=$RDS_HOST
+            export DB_NAME=$DB_NAME
+            export DB_USER=${{ secrets.DB_USER }}
+            export DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+            bash scripts/deploy-rds.sh
 
       - name: Get EC2 Instances
         id: ec2
