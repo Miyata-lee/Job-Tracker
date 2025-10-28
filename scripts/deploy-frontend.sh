@@ -67,7 +67,7 @@ log_success "Files uploaded to S3"
 
 log "Step 5: Getting CloudFront distribution ID"
 CLOUDFRONT_ID=$(aws cloudfront list-distributions \
-    --query "Distributions[?DefaultRootObject=='index.html' && Comment=='OAI for ${PROJECT_NAME}-${ENVIRONMENT}'].Id" \
+    --query 'Distributions[0].Id' \
     --output text)
 
 if [ -z "$CLOUDFRONT_ID" ]; then
