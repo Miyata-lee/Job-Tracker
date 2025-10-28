@@ -26,29 +26,9 @@ jobs:
           role-to-assume: arn:aws:iam::107411014674:role/github-jobtracker-role
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v2
-        with:
-          terraform_version: 1.5.0
-
-      - name: Get Terraform Outputs
-        run: |
-          cd environment/${{ env.ENVIRONMENT }}
-          terraform init -no-color > /dev/null 2>&1
-          terraform output -raw rds_endpoint 2>/dev/null > /tmp/rds_endpoint.txt
-          terraform output -raw rds_database_name 2>/dev/null > /tmp/db_name.txt
-          terraform output -raw auto_scaling_group_name 2>/dev/null > /tmp/asg_name.txt
-          
-          echo "RDS Endpoint: $(cat /tmp/rds_endpoint.txt)"
-          echo "DB Name: $(cat /tmp/db_name.txt)"
-          echo "ASG Name: $(cat /tmp/asg_name.txt)"
-
       - name: Get EC2 Instance IPs
         run: |
-          # Use hardcoded ASG name to avoid terraform output issues
           ASG_NAME="jobtracker-asg-dev"
-          
-          echo "Fetching instances from ASG: $ASG_NAME"
           
           INSTANCE_IDS=$(aws autoscaling describe-auto-scaling-groups \
             --auto-scaling-group-names "$ASG_NAME" \
@@ -60,51 +40,67 @@ jobs:
             exit 1
           fi
           
-          echo "Instance IDs: $INSTANCE_IDS"
-          
           EC2_IPS=$(aws ec2 describe-instances \
             --instance-ids $INSTANCE_IDS \
             --query 'Reservations[].Instances[].PublicIpAddress' \
             --output text)
           
-          echo "EC2 IPs: $EC2_IPS"
           echo "$EC2_IPS" > /tmp/ec2_ips.txt
 
-      - name: Deploy RDS + EC2 Application
+      - name: Wait for SSH to be Ready
         run: |
-            DB_HOST=$(cat /tmp/rds_endpoint.txt | cut -d: -f1)
-            DB_NAME=$(cat /tmp/db_name.txt)
-            EC2_IPS=$(cat /tmp/ec2_ips.txt)
-            
-            mkdir -p ~/.ssh
-            echo "${{ secrets.EC2_PRIVATE_KEY }}" > ~/.ssh/key.pem
-            chmod 600 ~/.ssh/key.pem
-            
-            for ip in $EC2_IPS; do
-              echo "Waiting for SSH on $ip..."
-              for i in {1..60}; do
-                if ssh-keyscan -H $ip >> ~/.ssh/known_hosts 2>/dev/null; then
-                  echo "✓ SSH ready on $ip"
-                  break
-                fi
-                if [ $i -eq 60 ]; then
-                  echo "✗ SSH timeout on $ip"
-                  exit 1
-                fi
-                sleep 2
-              done
-              
-              echo "Deploying to $ip..."
-              ssh -i ~/.ssh/key.pem -o ConnectTimeout=10 ec2-user@$ip \
-                "export DB_HOST=$DB_HOST && \
-                export DB_USER=${{ secrets.DB_USER }} && \
-                export DB_PASSWORD=${{ secrets.DB_PASSWORD }} && \
-                export DB_NAME=$DB_NAME && \
-                export SECRET_KEY=${{ secrets.SECRET_KEY }} && \
-                curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/${{ github.ref_name }}/scripts/deploy-rds.sh | bash && \
-                curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/${{ github.ref_name }}/scripts/deploy-ec2.sh | bash"
+          EC2_IPS=$(cat /tmp/ec2_ips.txt)
+          
+          for ip in $EC2_IPS; do
+            echo "Waiting for SSH on $ip..."
+            for i in {1..60}; do
+              if ssh-keyscan -H $ip >> /tmp/known_hosts 2>/dev/null; then
+                echo "✓ SSH ready on $ip"
+                break
+              fi
+              if [ $i -eq 60 ]; then
+                echo "✗ SSH timeout on $ip"
+                exit 1
+              fi
+              sleep 2
             done
+          done
+
+      - name: Deploy RDS + EC2
+        env:
+          DB_HOST: jobtracker-mysql-dev.c8xakusqg6xa.us-east-1.rds.amazonaws.com
+          DB_NAME: jobtracker_dev
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          SECRET_KEY: ${{ secrets.SECRET_KEY }}
+        run: |
+          EC2_IPS=$(cat /tmp/ec2_ips.txt)
+          
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_PRIVATE_KEY }}" > ~/.ssh/key.pem
+          chmod 600 ~/.ssh/key.pem
+          
+          for ip in $EC2_IPS; do
+            echo "Deploying to $ip..."
             
+            # Deploy RDS
+            ssh -i ~/.ssh/key.pem -o StrictHostKeyChecking=no ec2-user@$ip \
+              "export DB_HOST=$DB_HOST && \
+               export DB_USER=$DB_USER && \
+               export DB_PASSWORD=$DB_PASSWORD && \
+               export DB_NAME=$DB_NAME && \
+               curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/${{ github.ref_name }}/scripts/deploy-rds.sh | bash"
+            
+            # Deploy EC2
+            ssh -i ~/.ssh/key.pem -o StrictHostKeyChecking=no ec2-user@$ip \
+              "export DB_HOST=$DB_HOST && \
+               export DB_USER=$DB_USER && \
+               export DB_PASSWORD=$DB_PASSWORD && \
+               export DB_NAME=$DB_NAME && \
+               export SECRET_KEY=$SECRET_KEY && \
+               curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/${{ github.ref_name }}/scripts/deploy-ec2.sh | bash"
+          done
+
       - name: Deploy Frontend to S3
         env:
           PROJECT_NAME: ${{ env.PROJECT_NAME }}
@@ -114,6 +110,7 @@ jobs:
       - name: Health Check
         run: |
           EC2_IPS=$(cat /tmp/ec2_ips.txt)
+          
           for ip in $EC2_IPS; do
             echo "Health checking $ip:5000..."
             for i in {1..30}; do
@@ -131,6 +128,5 @@ jobs:
 
       - name: Deployment Complete
         run: |
-          echo "✓ Application deployment completed successfully!"
-          echo "RDS Endpoint: $(cat /tmp/rds_endpoint.txt)"
+          echo "✓ Application deployment completed!"
           echo "Timestamp: $(date)"
