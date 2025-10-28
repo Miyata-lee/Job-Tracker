@@ -129,12 +129,18 @@ sudo systemctl daemon-reload
 sudo systemctl enable $SERVICE_NAME
 sudo systemctl start $SERVICE_NAME
 sleep 2
+# Show service status and logs
+echo "Service status:"
+sudo systemctl status jobtracker || true
+echo "Recent logs:"
+sudo journalctl -u jobtracker -n 20 || true
 
 if sudo systemctl is-active --quiet $SERVICE_NAME; then
     log_success "Service started"
 else
     error_exit "Service failed to start"
 fi
+
 
 log "Step 9: Health check"
 for i in {1..30}; do
