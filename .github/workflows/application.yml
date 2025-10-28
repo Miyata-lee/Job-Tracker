@@ -39,6 +39,28 @@ jobs:
           terraform output -raw rds_database_name > /tmp/db_name.txt
           terraform output -raw auto_scaling_group_name > /tmp/asg_name.txt
 
+      - name: Wait for EC2 Instances
+        run: |
+          ASG_NAME=$(cat /tmp/asg_name.txt | tail -1)
+          echo "Waiting for instances in ASG: $ASG_NAME..."
+          for i in {1..60}; do
+            COUNT=$(aws autoscaling describe-auto-scaling-groups \
+              --auto-scaling-group-names "$ASG_NAME" \
+              --query 'AutoScalingGroups[0].Instances | length(@)' \
+              --output text)
+            if [ "$COUNT" -gt 0 ]; then
+              echo "✓ Found $COUNT instances"
+              break
+            fi
+            if [ $i -eq 60 ]; then
+              echo "✗ Timeout waiting for instances"
+              exit 1
+            fi
+            echo "Waiting... ($i/60)"
+            sleep 2
+          done
+
+
       - name: Get EC2 Instance IPs
         run: |
           ASG_NAME=$(cat /tmp/asg_name.txt | tail -1)
