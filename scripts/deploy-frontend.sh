@@ -5,14 +5,13 @@
 set -e
 
 PROJECT_NAME="${PROJECT_NAME:-jobtracker}"
-ENVIRONMENT="${ENVIRONMENT:-prod}"
+ENVIRONMENT="${ENVIRONMENT:-dev}"
 AWS_REGION="${AWS_REGION:-us-east-1}"
 FRONTEND_DIR="frontend-app/templates"
 LOG_FILE="/tmp/jobtracker-frontend-deploy.log"
 
 GREEN='\033[0;32m'
 RED='\033[0;31m'
-YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
@@ -67,39 +66,23 @@ log_success "Files uploaded to S3"
 
 log "Step 5: Getting CloudFront distribution ID"
 CLOUDFRONT_ID=$(aws cloudfront list-distributions \
-    --query "Distributions[?Tags.Items[?Key=='Name' && Value=='${PROJECT_NAME}-cloudfront-${ENVIRONMENT}']].Id" \
+    --query 'Distributions[0].Id' \
     --output text)
 
 if [ -z "$CLOUDFRONT_ID" ] || [ "$CLOUDFRONT_ID" == "None" ]; then
-    log "No CloudFront distribution found, skipping invalidation"
+    log_success "No CloudFront distribution found, skipping invalidation"
 else
     log_success "CloudFront distribution found: $CLOUDFRONT_ID"
     
     log "Step 6: Invalidating CloudFront cache"
-    aws cloudfront create-invalidation \
+    INVALIDATION_ID=$(aws cloudfront create-invalidation \
         --distribution-id "$CLOUDFRONT_ID" \
-        --paths "/*" > /dev/null
-    log_success "CloudFront cache invalidated"
+        --paths "/*" \
+        --query 'Invalidation.Id' \
+        --output text)
+    log_success "CloudFront cache invalidated: $INVALIDATION_ID"
 fi
-
-log "Step 6: Invalidating CloudFront cache"
-INVALIDATION_ID=$(aws cloudfront create-invalidation \
-    --distribution-id "$CLOUDFRONT_ID" \
-    --paths "/*" \
-    --query 'Invalidation.Id' \
-    --output text)
-log_success "Invalidation created: $INVALIDATION_ID"
-
-log "Step 7: Waiting for invalidation to complete"
-aws cloudfront wait invalidation-completed \
-    --distribution-id "$CLOUDFRONT_ID" \
-    --id "$INVALIDATION_ID"
-log_success "Invalidation completed"
 
 log "=========================================="
 log_success "Frontend Deployment Complete!"
-log "=========================================="
-log "S3 Bucket: $S3_BUCKET"
-log "CloudFront ID: $CLOUDFRONT_ID"
-log "Files synced and cache invalidated"
 log "=========================================="
