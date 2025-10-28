@@ -67,13 +67,20 @@ log_success "Files uploaded to S3"
 
 log "Step 5: Getting CloudFront distribution ID"
 CLOUDFRONT_ID=$(aws cloudfront list-distributions \
-    --query 'Distributions[0].Id' \
+    --query "Distributions[?Tags.Items[?Key=='Name' && Value=='${PROJECT_NAME}-cloudfront-${ENVIRONMENT}']].Id" \
     --output text)
 
-if [ -z "$CLOUDFRONT_ID" ]; then
-    error_exit "CloudFront distribution not found"
+if [ -z "$CLOUDFRONT_ID" ] || [ "$CLOUDFRONT_ID" == "None" ]; then
+    log "No CloudFront distribution found, skipping invalidation"
+else
+    log_success "CloudFront distribution found: $CLOUDFRONT_ID"
+    
+    log "Step 6: Invalidating CloudFront cache"
+    aws cloudfront create-invalidation \
+        --distribution-id "$CLOUDFRONT_ID" \
+        --paths "/*" > /dev/null
+    log_success "CloudFront cache invalidated"
 fi
-log_success "CloudFront distribution found: $CLOUDFRONT_ID"
 
 log "Step 6: Invalidating CloudFront cache"
 INVALIDATION_ID=$(aws cloudfront create-invalidation \
