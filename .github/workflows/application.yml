@@ -41,7 +41,7 @@ jobs:
 
       - name: Get EC2 Instance IPs
         run: |
-          ASG_NAME=$(cat /tmp/asg_name.txt)
+          ASG_NAME=$(cat /tmp/asg_name.txt | tail -1)
           INSTANCE_IDS=$(aws autoscaling describe-auto-scaling-groups \
             --auto-scaling-group-names "$ASG_NAME" \
             --query 'AutoScalingGroups[0].Instances[].InstanceId' \
