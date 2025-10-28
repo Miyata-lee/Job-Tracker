@@ -1,19 +1,12 @@
 #!/bin/bash
 # File: scripts/deploy-rds.sh
 # JobTracker RDS MySQL Deployment Script
-# Initializes database schema and tables
 
 set -e
 
-# Configuration
-
-DB_HOST="$(echo ${DB_HOST} | tr -d '\n')"
-DB_USER="$(echo ${DB_USER} | tr -d '\n')"
-DB_PASSWORD="$(echo ${DB_PASSWORD} | tr -d '\n')"
-# Debug: show what we got
-echo "DEBUG: DB_HOST=$DB_HOST"
-echo "DEBUG: DB_USER=$DB_USER"
-echo "DEBUG: DB_PASSWORD=$DB_PASSWORD"
+DB_HOST="${DB_HOST}"
+DB_USER="${DB_USER}"
+DB_PASSWORD="${DB_PASSWORD}"
 DB_NAME="jobtracker"
 LOG_FILE="/tmp/jobtracker-rds-deploy.log"
 
@@ -46,7 +39,6 @@ log "=========================================="
 log "JobTracker RDS MySQL Setup Starting"
 log "=========================================="
 
-# Check if mysql client is installed
 log "Step 1: Checking mysql client"
 if ! command -v mysql &> /dev/null; then
     log "MySQL client not found, installing..."
@@ -56,33 +48,27 @@ else
     log_success "MySQL client already installed"
 fi
 
-# Validate environment variables
 log "Step 2: Validating credentials"
 if [ -z "$DB_HOST" ] || [ -z "$DB_USER" ] || [ -z "$DB_PASSWORD" ]; then
-    error_exit "Missing database credentials. Please set DB_HOST, DB_USER, DB_PASSWORD environment variables"
+    error_exit "Missing database credentials"
 fi
 log_success "Credentials validated"
 
-# Test RDS connection
 log "Step 3: Testing RDS connection"
 if mysql -h $DB_HOST -u $DB_USER -p$DB_PASSWORD -e "SELECT 1" > /dev/null 2>&1; then
     log_success "Connected to RDS: $DB_HOST"
 else
-    error_exit "Failed to connect to RDS at $DB_HOST. Check credentials and security groups"
+    error_exit "Failed to connect to RDS"
 fi
 
-# Create database
 log "Step 4: Creating database"
 mysql -h $DB_HOST -u $DB_USER -p$DB_PASSWORD << EOF
 CREATE DATABASE IF NOT EXISTS $DB_NAME;
 EOF
-log_success "Database '$DB_NAME' created or already exists"
+log_success "Database created"
 
-# Create tables
 log "Step 5: Creating tables"
 mysql -h $DB_HOST -u $DB_USER -p$DB_PASSWORD $DB_NAME << 'EOF'
-
--- Users table
 CREATE TABLE IF NOT EXISTS users (
     id INT AUTO_INCREMENT PRIMARY KEY,
     username VARCHAR(50) UNIQUE NOT NULL,
@@ -91,7 +77,6 @@ CREATE TABLE IF NOT EXISTS users (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Jobs table
 CREATE TABLE IF NOT EXISTS jobs (
     id INT AUTO_INCREMENT PRIMARY KEY,
     user_id INT NOT NULL,
@@ -106,24 +91,13 @@ CREATE TABLE IF NOT EXISTS jobs (
     INDEX idx_user_id (user_id),
     INDEX idx_status (status)
 );
-
 EOF
 log_success "Tables created"
 
-# Verify tables
 log "Step 6: Verifying tables"
-TABLES=$(mysql -h $DB_HOST -u $DB_USER -p$DB_PASSWORD $DB_NAME -e "SHOW TABLES;" | wc -l)
-log "Tables count: $TABLES"
-
 mysql -h $DB_HOST -u $DB_USER -p$DB_PASSWORD $DB_NAME -e "SHOW TABLES;"
-log_success "Database schema verified"
+log_success "Database verified"
 
 log "=========================================="
 log_success "RDS Setup Complete!"
-log "=========================================="
-log "Database: $DB_NAME"
-log "Host: $DB_HOST"
-log "User: $DB_USER"
-log "Tables: users, jobs"
-log "Log file: $LOG_FILE"
 log "=========================================="
