@@ -10,7 +10,7 @@ BRANCH="${BRANCH:-main}"
 VENV_DIR="$APP_DIR/venv"
 APP_PORT=5000
 SERVICE_NAME="jobtracker"
-LOG_FILE="/var/log/jobtracker-ec2-deploy.log"
+LOG_FILE="/tmp/jobtracker-ec2-deploy.log"
 
 GREEN='\033[0;32m'
 RED='\033[0;31m'

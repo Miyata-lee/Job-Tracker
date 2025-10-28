@@ -8,7 +8,7 @@ PROJECT_NAME="${PROJECT_NAME:-jobtracker}"
 ENVIRONMENT="${ENVIRONMENT:-prod}"
 AWS_REGION="${AWS_REGION:-us-east-1}"
 FRONTEND_DIR="frontend-app/templates"
-LOG_FILE="/var/log/jobtracker-frontend-deploy.log"
+LOG_FILE="/tmp/jobtracker-frontend-deploy.log"
 
 GREEN='\033[0;32m'
 RED='\033[0;31m'
