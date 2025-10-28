@@ -57,23 +57,24 @@ jobs:
       - name: Get Terraform Outputs
         id: tf_outputs
         run: |
-          cd environment/${{ env.ENVIRONMENT }}
-          
-          terraform output -raw rds_endpoint > /tmp/rds_endpoint.txt
-          terraform output -raw rds_database_name > /tmp/db_name.txt
-          terraform output -raw alb_dns_name > /tmp/alb_dns.txt
-          terraform output -raw auto_scaling_group_name > /tmp/asg_name.txt
-          
-          cat /tmp/rds_endpoint.txt
-          cat /tmp/db_name.txt
-          cat /tmp/alb_dns.txt
-          cat /tmp/asg_name.txt
+            cd environment/${{ env.ENVIRONMENT }}
+            
+            terraform output -raw rds_endpoint | tr -d '\n' > /tmp/rds_endpoint.txt
+            terraform output -raw rds_database_name | tr -d '\n' > /tmp/db_name.txt
+            terraform output -raw alb_dns_name | tr -d '\n' > /tmp/alb_dns.txt
+            terraform output -raw auto_scaling_group_name | tr -d '\n' > /tmp/asg_name.txt
+            
+            echo "RDS Endpoint: $(cat /tmp/rds_endpoint.txt)"
+            echo "DB Name: $(cat /tmp/db_name.txt)"
+            echo "ALB DNS: $(cat /tmp/alb_dns.txt)"
+            echo "ASG Name: $(cat /tmp/asg_name.txt)"
 
       - name: Deploy RDS Database
         run: |
-          DB_HOST=$(cat /tmp/rds_endpoint.txt)
-          DB_NAME=$(cat /tmp/db_name.txt)
-          export DB_HOST DB_NAME
+          cat /tmp/rds_endpoint.txt /tmp/db_name.txt > /tmp/rds_config.env
+          set -a
+          source /tmp/rds_config.env
+          set +a
           export DB_USER=${{ secrets.DB_USER }}
           export DB_PASSWORD=${{ secrets.DB_PASSWORD }}
           bash scripts/deploy-rds.sh
@@ -125,8 +126,9 @@ jobs:
         run: bash scripts/deploy-frontend.sh
 
       - name: Health Check EC2
+        env:
+          EC2_IPS: ${{ steps.ec2.outputs.ips }}
         run: |
-          EC2_IPS=$(cat /tmp/ec2_ips.txt)
           for ip in $EC2_IPS; do
             echo "Health checking $ip:5000..."
             for i in {1..30}; do
@@ -143,8 +145,11 @@ jobs:
           done
 
       - name: Deployment Summary
+        env:
+          ALB_DNS: ${{ steps.tf_outputs.outputs.alb_dns }}
+          RDS_ENDPOINT: ${{ steps.tf_outputs.outputs.rds_endpoint }}
         run: |
           echo "✓ Deployment Complete!"
-          echo "ALB DNS: $(cat /tmp/alb_dns.txt)"
-          echo "RDS Endpoint: $(cat /tmp/rds_endpoint.txt)"
+          echo "ALB DNS: $ALB_DNS"
+          echo "RDS Endpoint: $RDS_ENDPOINT"
           echo "Timestamp: $(date)"
