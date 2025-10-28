@@ -71,10 +71,13 @@ jobs:
 
       - name: Deploy RDS Database
         run: |
-          cat /tmp/rds_endpoint.txt /tmp/db_name.txt > /tmp/rds_config.env
-          set -a
-          source /tmp/rds_config.env
-          set +a
+          cd environment/${{ env.ENVIRONMENT }}
+          RDS_HOST=$(terraform output -raw rds_endpoint | cut -d: -f1)
+          DB_NAME=$(terraform output -raw rds_database_name)
+          cd - 
+          
+          export DB_HOST=$RDS_HOST
+          export DB_NAME=$DB_NAME
           export DB_USER=${{ secrets.DB_USER }}
           export DB_PASSWORD=${{ secrets.DB_PASSWORD }}
           bash scripts/deploy-rds.sh
