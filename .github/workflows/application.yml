@@ -71,14 +71,22 @@ jobs:
 
       - name: Get EC2 Instance IPs
         run: |
-          INSTANCE_IDS=$(cat /tmp/instance_ids.txt)
-          EC2_IPS=$(aws ec2 describe-instances \
-            --instance-ids $INSTANCE_IDS \
-            --query 'Reservations[].Instances[].PublicIpAddress' \
-            --output text)
-          
-          echo "EC2 IPs: $EC2_IPS"
-          echo "$EC2_IPS" > /tmp/ec2_ips.txt
+            ASG_NAME="jobtracker-asg-dev"
+            
+            INSTANCE_IDS=$(aws autoscaling describe-auto-scaling-groups \
+              --auto-scaling-group-names "$ASG_NAME" \
+              --query 'AutoScalingGroups[0].Instances[].InstanceId' \
+              --output text)
+            
+            echo "Instance IDs: $INSTANCE_IDS"
+            
+            EC2_IPS=$(aws ec2 describe-instances \
+              --instance-ids $INSTANCE_IDS \
+              --query 'Reservations[].Instances[].PublicIpAddress' \
+              --output text)
+            
+            echo "EC2 IPs: $EC2_IPS"
+            echo "$EC2_IPS" > /tmp/ec2_ips.txt
 
       - name: Deploy RDS + EC2 Application
         run: |
