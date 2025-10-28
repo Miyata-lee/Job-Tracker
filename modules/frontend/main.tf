@@ -87,7 +87,7 @@ resource "aws_s3_bucket_ownership_controls" "logs" {
 }
 
 resource "aws_s3_bucket_acl" "logs" {
-  depends_on = [aws_s3_bucket_ownership_controls.logs]
+  depends_on = [aws_s3_bucket_ownership_controls.logs, aws_s3_bucket_public_access_block.logs]
   bucket     = aws_s3_bucket.logs.id
   acl        = "log-delivery-write"
 }
