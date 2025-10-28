@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-app = Flask(__name__, template_folder="../frontend-app/templates")
+app = Flask(__name__, template_folder="../../frontend-app/templates")
 app.secret_key = os.getenv('SECRET_KEY', 'your-secret-key-change-this')
 
 # MySQL Configuration
