@@ -13,7 +13,9 @@ env:
 
 permissions:
   id-token: write
-  contents: read
+  contents: write
+  actions: write
+
 
 jobs:
   terraform:
