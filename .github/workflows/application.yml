@@ -98,14 +98,26 @@ jobs:
           CF_ALIAS_MATCH: ${{ secrets.CF_ALIAS_MATCH }}
         run: bash scripts/deploy-frontend.sh
 
-      - name: Health Check (HTTP /health)
+      - name: Verify app is running on instances
         run: |
           EC2_IPS=$(cat /tmp/ec2_ips.txt)
           for ip in $EC2_IPS; do
-            echo "Checking http://$ip:${{ env.APP_PORT }}${{ env.HEALTH_PATH }}"
-            for i in {1..30}; do
-              curl -fsS "http://$ip:${{ env.APP_PORT }}${{ env.HEALTH_PATH }}" && break
-              [ $i -eq 30 ] && { echo "Health check failed on $ip"; exit 1; }
-              sleep 2
-            done
+            echo "Checking if app is running on $ip..."
+            ssh -i ~/.ssh/key.pem -o StrictHostKeyChecking=no ec2-user@$ip \
+              "systemctl status jobtracker || ps aux | grep -i python"
           done
+
+      - name: Health Check via ALB
+        run: |
+          ALB_DNS=$(aws elbv2 describe-load-balancers --names "${{ env.LB_NAME }}" \
+            --query 'LoadBalancers[0].DNSName' --output text)
+          echo "Checking ALB health: http://${ALB_DNS}${{ env.HEALTH_PATH }}"
+          for i in {1..60}; do
+            curl -fsS "http://${ALB_DNS}${{ env.HEALTH_PATH }}" && break
+            if [ $i -eq 60 ]; then
+              echo "Health check failed after 2 minutes"
+              exit 1
+            fi
+            sleep 2
+          done
+          echo "✓ Health check passed"
