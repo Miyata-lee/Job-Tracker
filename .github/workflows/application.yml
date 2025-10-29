@@ -1,5 +1,4 @@
 name: Deploy Application
-
 on:
   workflow_dispatch:
 
@@ -8,7 +7,10 @@ env:
   PROJECT_NAME: jobtracker
   ENVIRONMENT: dev
   ASG_NAME: jobtracker-asg-dev
-  DB_NAME: jobtracker   
+  LB_NAME: jobtracker-alb-dev
+  TG_NAME: jobtracker-tg-dev         
+  APP_PORT: 5000
+  HEALTH_PATH: /health
 
 permissions:
   id-token: write
@@ -18,76 +20,78 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Configure AWS credentials via OIDC
-        uses: aws-actions/configure-aws-credentials@v4
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v5
         with:
-          role-to-assume: arn:aws:iam::107411014674:role/github-jobtracker-role
+          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Get EC2 public IPs in ASG
-        id: ec2
+      - name: Prep SSH key
         run: |
-          INSTANCE_IDS=$(aws autoscaling describe-auto-scaling-groups \
-            --auto-scaling-group-names "${ASG_NAME}" \
-            --query 'AutoScalingGroups[0].Instances[?LifecycleState==`InService` && HealthStatus==`Healthy`].InstanceId' \
-            --output text)
-          if [ -z "$INSTANCE_IDS" ]; then
-            echo "No InService instances in ASG"
-            exit 1
-          fi
-          EC2_IPS=$(aws ec2 describe-instances --instance-ids $INSTANCE_IDS \
-            --query 'Reservations[].Instances[?PublicIpAddress!=null].PublicIpAddress' --output text)
-          if [ -z "$EC2_IPS" ]; then
-            echo "Instances have no public IPs; consider SSM-based deployment"
-            exit 1
-          fi
-          echo "$EC2_IPS" > /tmp/ec2_ips.txt
+          install -m 600 /dev/null ~/.ssh/key.pem
+          echo "${{ secrets.EC2_SSH_PRIVATE_KEY }}" > ~/.ssh/key.pem
 
-      - name: Setup SSH
+      - name: Get InService EC2 instance IDs
+        id: asg
         run: |
-          # Create SSH directory and configure permissions
-          mkdir -p ~/.ssh
-          chmod 700 ~/.ssh
-          echo "${{ secrets.EC2_PRIVATE_KEY }}" > ~/.ssh/key.pem
-          chmod 600 ~/.ssh/key.pem
-          touch ~/.ssh/known_hosts
-          EC2_IPS=$(cat /tmp/ec2_ips.txt)
-          for ip in $EC2_IPS; do
-            echo "Waiting for SSH on $ip..."
-            for i in {1..60}; do
-              ssh-keyscan -H $ip >> ~/.ssh/known_hosts 2>/dev/null && break
-              [ $i -eq 60 ] && { echo "❌ SSH not ready on $ip"; exit 1; }
-              sleep 2
-            done
-            echo "✅ SSH ready on $ip"
+          IDS=$(aws autoscaling describe-auto-scaling-groups \
+            --auto-scaling-group-names "${ASG_NAME}" \
+            --query 'AutoScalingGroups[0].Instances[?LifecycleState==`InService`].InstanceId' \
+            --output text)
+          echo "ids=$IDS" >> $GITHUB_OUTPUT
+
+      - name: Get public IPs
+        id: ips
+        run: |
+          if [ -z "${{ steps.asg.outputs.ids }}" ]; then
+            echo "No InService instances"
+            exit 1
+          fi
+          EC2_IPS=$(aws ec2 describe-instances --instance-ids ${{ steps.asg.outputs.ids }} \
+            --query 'Reservations[].Instances[?PublicIpAddress!=null].PublicIpAddress' --output text)
+          echo "$EC2_IPS" | tr '\t' '\n' > /tmp/ec2_ips.txt
+          cat /tmp/ec2_ips.txt
+
+      - name: Copy scripts to EC2
+        run: |
+          for ip in $(cat /tmp/ec2_ips.txt); do
+            scp -i ~/.ssh/key.pem -o StrictHostKeyChecking=no scripts/deploy-rds.sh scripts/deploy-ec2.sh ec2-user@$ip:/home/ec2-user/
           done
 
-
-      - name: Deploy RDS and EC2
+      - name: Run RDS schema on EC2
         env:
-          DB_HOST: jobtracker-mysql-dev.c8xakusqg6xa.us-east-1.rds.amazonaws.com
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_NAME: ${{ env.DB_NAME }}
+        run: |
+          for ip in $(cat /tmp/ec2_ips.txt); do
+            ssh -i ~/.ssh/key.pem -o StrictHostKeyChecking=no ec2-user@$ip \
+              "export DB_HOST='${DB_HOST}' DB_USER='${DB_USER}' DB_PASSWORD='${DB_PASSWORD}' DB_NAME='${DB_NAME}'; bash ~/deploy-rds.sh"
+          done
+
+      - name: Deploy App on EC2 (systemd on 5000)
+        env:
+          DB_HOST: ${{ secrets.DB_HOST }}
           DB_USER: ${{ secrets.DB_USER }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           DB_NAME: ${{ env.DB_NAME }}
           SECRET_KEY: ${{ secrets.SECRET_KEY }}
-          CORS_ORIGINS: ${{ secrets.CORS_ORIGINS }}
+          CORS_ORIGINS: "*"
         run: |
-          EC2_IPS=$(cat /tmp/ec2_ips.txt)
-          mkdir -p ~/.ssh
-          echo "${{ secrets.EC2_PRIVATE_KEY }}" > ~/.ssh/key.pem
-          chmod 600 ~/.ssh/key.pem
-          for ip in $EC2_IPS; do
-            echo "Copying scripts to $ip"
-            scp -i ~/.ssh/key.pem -o StrictHostKeyChecking=no scripts/deploy-rds.sh scripts/deploy-ec2.sh ec2-user@$ip:/home/ec2-user/
-            echo "RDS init on $ip"
+          for ip in $(cat /tmp/ec2_ips.txt); do
             ssh -i ~/.ssh/key.pem -o StrictHostKeyChecking=no ec2-user@$ip \
-              "export DB_HOST='$DB_HOST' DB_USER='$DB_USER' DB_PASSWORD='$DB_PASSWORD' DB_NAME='$DB_NAME'; bash ~/deploy-rds.sh"
-            echo "EC2 app deploy on $ip"
+              "export DB_HOST='${DB_HOST}' DB_USER='${DB_USER}' DB_PASSWORD='${DB_PASSWORD}' DB_NAME='${DB_NAME}' SECRET_KEY='${SECRET_KEY}' CORS_ORIGINS='${CORS_ORIGINS}'; bash ~/deploy-ec2.sh"
+          done
+
+      - name: Verify local health on each instance
+        run: |
+          for ip in $(cat /tmp/ec2_ips.txt); do
             ssh -i ~/.ssh/key.pem -o StrictHostKeyChecking=no ec2-user@$ip \
-              "export DB_HOST='$DB_HOST' DB_USER='$DB_USER' DB_PASSWORD='$DB_PASSWORD' DB_NAME='$DB_NAME' SECRET_KEY='$SECRET_KEY' CORS_ORIGINS='${CORS_ORIGINS}'; bash ~/deploy-ec2.sh"
+              "curl -fsS --connect-timeout 2 --max-time 3 http://127.0.0.1:${APP_PORT}${HEALTH_PATH}" >/dev/null
           done
 
       - name: Deploy Frontend to S3
@@ -95,23 +99,31 @@ jobs:
           PROJECT_NAME: ${{ env.PROJECT_NAME }}
           ENVIRONMENT: ${{ env.ENVIRONMENT }}
           AWS_REGION: ${{ env.AWS_REGION }}
-          CF_ALIAS_MATCH: ${{ secrets.CF_ALIAS_MATCH }}
+          CF_ALIAS_MATCH: ${{ secrets.CF_ALIAS_MATCH }} # optional
         run: FRONTEND_DIR=application/frontend-app/templates bash scripts/deploy-frontend.sh
 
-
-      - name: Health Check (via ALB)
+      - name: Check Target Group health (HTTP:5000 /health)
         run: |
-          ALB_DNS=$(aws elbv2 describe-load-balancers \
-            --names jobtracker-alb-dev \
-            --query 'LoadBalancers[0].DNSName' --output text)
-          echo "Checking http://${ALB_DNS}/health"
+          TG_ARN=$(aws elbv2 describe-target-groups --names "${TG_NAME}" \
+            --query 'TargetGroups[0].TargetGroupArn' --output text)
+          aws elbv2 describe-target-groups --names "${TG_NAME}" \
+            --query 'TargetGroups[0].[Port,HealthCheckPort,HealthCheckPath,Matcher.HttpCode]' --output table
           for i in {1..60}; do
-            if curl -fsS --connect-timeout 2 --max-time 3 "http://${ALB_DNS}/health" >/dev/null; then
-              echo "✓ ALB endpoint healthy"
+            STATES=$(aws elbv2 describe-target-health --target-group-arn "$TG_ARN" \
+              --query 'TargetHealthDescriptions[*].TargetHealth.State' --output text || true)
+            echo "States: $STATES"
+            if [ -n "$STATES" ] && ! grep -qv '^healthy$' <<< "$STATES"; then
+              echo "All targets healthy"
               exit 0
             fi
             sleep 5
           done
-          echo "✗ ALB health check timed out"
+          echo "Targets not healthy in time"
           exit 1
 
+      - name: ALB /health
+        run: |
+          ALB_DNS=$(aws elbv2 describe-load-balancers --names "${LB_NAME}" \
+            --query 'LoadBalancers[0].DNSName' --output text)
+          echo "Checking http://${ALB_DNS}${HEALTH_PATH}"
+          curl -fsS --connect-timeout 2 --max-time 3 "http://${ALB_DNS}${HEALTH_PATH}" >/dev/null

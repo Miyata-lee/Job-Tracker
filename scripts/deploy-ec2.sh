@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # JobTracker EC2 Flask App Deployment (Amazon Linux 2023)
 
 set -euo pipefail
@@ -12,12 +12,12 @@ SERVICE_NAME="jobtracker"
 
 log(){ echo "[$(date +'%F %T')] $*"; }
 
-# 1) Stop existing service (if any)
+# Stop existing service if present
 if sudo systemctl list-unit-files | grep -q "^${SERVICE_NAME}.service"; then
   sudo systemctl stop "$SERVICE_NAME" || true
 fi
 
-# 2) OS deps (AL2023 uses dnf)
+# OS deps
 if command -v dnf >/dev/null 2>&1; then
   sudo dnf -y update
   sudo dnf -y install python3 python3.11 python3.11-venv git
@@ -27,7 +27,7 @@ else
 fi
 PY_BIN=$(command -v python3.11 || command -v python3)
 
-# 3) Clone or update repo
+# Clone or update
 if [ -d "$APP_DIR/.git" ]; then
   git -C "$APP_DIR" fetch origin
   git -C "$APP_DIR" checkout "$BRANCH"
@@ -36,14 +36,14 @@ else
   git clone -b "$BRANCH" "$REPO_URL" "$APP_DIR"
 fi
 
-# 4) Venv + packages
+# Venv + packages
 [ -d "$VENV_DIR" ] || "$PY_BIN" -m venv "$VENV_DIR"
 source "$VENV_DIR/bin/activate"
 pip install --upgrade pip
 pip install -r "$APP_DIR/application/requirements.txt"
 pip install gunicorn mysql-connector-python flask-cors
 
-# 5) App env
+# .env for Flask app
 install -m 600 /dev/null "$APP_DIR/application/.env"
 cat > "$APP_DIR/application/.env" <<EOF
 DB_HOST=${DB_HOST}
@@ -52,10 +52,9 @@ DB_PASSWORD=${DB_PASSWORD}
 DB_NAME=${DB_NAME}
 SECRET_KEY=${SECRET_KEY}
 CORS_ORIGINS=${CORS_ORIGINS:-*}
-# FLASK_ENV is deprecated in Flask 2.3+, not used by Gunicorn service
 EOF
 
-# 6) systemd unit
+# systemd unit
 sudo tee /etc/systemd/system/${SERVICE_NAME}.service >/dev/null <<EOF
 [Unit]
 Description=JobTracker Flask via Gunicorn
@@ -77,14 +76,12 @@ StandardError=journal
 WantedBy=multi-user.target
 EOF
 
-# 7) Start
 sudo systemctl daemon-reload
 sudo systemctl enable --now "$SERVICE_NAME"
 
-# 8) Local health
 sleep 2
-if ! curl -fsS --connect-timeout 2 --max-time 3 "http://127.0.0.1:${APP_PORT}/health" >/dev/null; then
+curl -fsS --connect-timeout 2 --max-time 3 "http://127.0.0.1:${APP_PORT}/health" >/dev/null || {
   sudo journalctl -u "$SERVICE_NAME" -n 200 --no-pager || true
   exit 1
-fi
+}
 log "EC2 app healthy on ${APP_PORT}"

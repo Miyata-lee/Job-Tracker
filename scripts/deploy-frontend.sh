@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # JobTracker S3 + CloudFront Frontend Deployment
 
 set -euo pipefail
@@ -24,25 +24,17 @@ aws s3 sync "${FRONTEND_DIR}" "s3://${S3_BUCKET}" \
   --delete \
   --cache-control "max-age=3600,s-maxage=3600"
 
-# CloudFront invalidation (deterministic)
-log "Resolving CloudFront distribution"
-CLOUDFRONT_ID=""
+# Optional invalidation (CloudFront already working)
 if [ -n "${CF_ALIAS_MATCH}" ]; then
   CLOUDFRONT_ID=$(aws cloudfront list-distributions \
     --query "DistributionList.Items[?Aliases.Items[?contains(@, \`${CF_ALIAS_MATCH}\`)]].Id | [0]" \
     --output text)
-fi
-if [ -z "${CLOUDFRONT_ID}" ] || [ "${CLOUDFRONT_ID}" = "None" ]; then
-  CLOUDFRONT_ID=$(aws cloudfront list-distributions \
-    --query "DistributionList.Items[?Comment=='${PROJECT_NAME}-${ENVIRONMENT}'].Id | [0]" \
-    --output text)
-fi
-
-if [ -n "${CLOUDFRONT_ID}" ] && [ "${CLOUDFRONT_ID}" != "None" ]; then
-  log "Invalidating CloudFront ${CLOUDFRONT_ID}"
-  aws cloudfront create-invalidation --distribution-id "${CLOUDFRONT_ID}" --paths "/*" >/dev/null
-else
-  log "No matching CloudFront distribution found; skipping invalidation"
+  if [ -n "${CLOUDFRONT_ID}" ] && [ "${CLOUDFRONT_ID}" != "None" ]; then
+    log "Invalidating CloudFront ${CLOUDFRONT_ID}"
+    aws cloudfront create-invalidation --distribution-id "${CLOUDFRONT_ID}" --paths "/*" >/dev/null
+  else
+    log "No matching CloudFront distribution found; skipping invalidation"
+  fi
 fi
 
 log "Frontend deployment complete"
