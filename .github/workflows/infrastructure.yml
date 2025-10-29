@@ -55,13 +55,8 @@ jobs:
 
       - name: Trigger Application Deployment
         if: success()
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            await github.rest.actions.createWorkflowDispatch({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              workflow_id: "Deploy Application",
-              ref: "main"
-            })
+        uses: benc-uk/workflow-dispatch@v1
+        with: Deploy Application
+        workflow: 
+        ref: main
+        token: ${{ secrets.GITHUB_TOKEN }}
