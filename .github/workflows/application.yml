@@ -27,11 +27,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v5
         with:
           aws-region: ${{ env.AWS_REGION }}
-          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+          role-to-assume: arn:aws:iam::107411014674:role/github-jobtracker-role
           role-session-name: jobtracker-app-deploy
           audience: sts.amazonaws.com
 
