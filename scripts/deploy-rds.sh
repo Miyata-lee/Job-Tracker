@@ -1,5 +1,5 @@
 #!/bin/bash
-# scripts/deploy-rds.sh (fixed)
+# JobTracker RDS MySQL Setup
 
 set -euo pipefail
 
@@ -7,22 +7,23 @@ DB_HOST="${DB_HOST:?missing}"
 DB_USER="${DB_USER:?missing}"
 DB_PASSWORD="${DB_PASSWORD:?missing}"
 DB_NAME="${DB_NAME:-jobtracker}"
-LOG_FILE="/tmp/jobtracker-rds-deploy.log"
 
 log(){ echo "[$(date +'%F %T')] $*"; }
 
+# Install MySQL client on AL2023
 if ! command -v mysql >/dev/null 2>&1; then
   sudo dnf -y install mysql || sudo yum -y install mysql
 fi
 
-log "Test connection"
+# Test connection
 mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASSWORD" -e "SELECT 1" >/dev/null
 
-log "Create DB and tables"
+# Create DB
 mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASSWORD" <<EOF
 CREATE DATABASE IF NOT EXISTS \`$DB_NAME\`;
 EOF
 
+# Create tables
 mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASSWORD" "$DB_NAME" <<'EOF'
 CREATE TABLE IF NOT EXISTS users (
   id INT AUTO_INCREMENT PRIMARY KEY,
@@ -48,4 +49,4 @@ CREATE TABLE IF NOT EXISTS jobs (
 );
 EOF
 
-log "RDS initialization complete"
+log "RDS schema ready"
