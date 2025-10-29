@@ -1,366 +1,258 @@
-<!-- File: templates/index.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>JobTracker - Login/Signup</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>JobTracker - Login/Signup</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    :root{
+      --bg1:#1e1e2e; --bg2:#2d2d44; --txt:#e0e0e0; --muted:#a78bfa;
+      --brand:#38bdf8; --accent:#7c3aed;
+    }
+    *{margin:0;padding:0;box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      color:var(--txt);
+      background: radial-gradient(1200px 600px at 50% -10%, rgba(56,189,248,.18), transparent 60%),
+                  linear-gradient(135deg,var(--bg1),var(--bg2));
+      min-height:100vh; display:flex; flex-direction:column; overflow:hidden;
+    }
 
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #1e1e2e 0%, #2d2d44 100%);
-            color: #e0e0e0;
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
+    /* Background layers */
+    .bg{
+      position:fixed; inset:0; pointer-events:none; z-index:-1;
+    }
+    /* subtle grid */
+    .bg .grid{
+      position:absolute; inset:0; opacity:.10; mix-blend:screen;
+      background:
+        radial-gradient(circle at 50% -20%, rgba(56,189,248,.20), transparent 55%),
+        repeating-linear-gradient(90deg, rgba(124,58,237,.22) 0 1px, transparent 1px 40px),
+        repeating-linear-gradient(0deg, rgba(56,189,248,.18) 0 1px, transparent 1px 40px);
+      mask-image: radial-gradient(ellipse at 50% 30%, rgba(0,0,0,1), rgba(0,0,0,.2) 60%, rgba(0,0,0,0) 85%);
+    }
+    /* animated orbs */
+    .bg .orb{
+      position:absolute; width:520px; height:520px; border-radius:50%;
+      filter:blur(60px); opacity:.34;
+      background:radial-gradient(circle at 30% 30%, rgba(34,211,238,.85), rgba(124,58,237,.65) 55%, rgba(0,0,0,0) 70%);
+      animation:float1 18s ease-in-out infinite;
+    }
+    .bg .orb.two{
+      width:640px; height:640px; left:auto; right:-180px; top:22%;
+      background:radial-gradient(circle at 60% 40%, rgba(168,85,247,.8), rgba(59,130,246,.65) 55%, rgba(0,0,0,0) 70%);
+      animation:float2 22s ease-in-out infinite;
+    }
+    .bg .orb.three{
+      width:460px; height:460px; left:-160px; bottom:-120px;
+      background:radial-gradient(circle at 40% 60%, rgba(59,130,246,.85), rgba(34,197,94,.55) 60%, rgba(0,0,0,0) 75%);
+      animation:float3 24s ease-in-out infinite;
+    }
+    @keyframes float1{0%{transform:translate(-8%, -6%)}50%{transform:translate(6%, 3%)}100%{transform:translate(-8%, -6%)}}
+    @keyframes float2{0%{transform:translate(6%, -4%)}50%{transform:translate(-4%, 4%)}100%{transform:translate(6%, -4%)}}
+    @keyframes float3{0%{transform:translate(4%, 6%)}50%{transform:translate(-4%, -2%)}100%{transform:translate(4%, 6%)}}
 
-        .auth-container {
-            width: 100%;
-            max-width: 400px;
-            padding: 20px;
-        }
+    /* Brand header (matches dashboard) */
+    .top{padding:32px 16px 6px;text-align:center; position:relative}
+    .brand{
+      display:flex;gap:12px;align-items:center;justify-content:center;
+      font-size:40px;font-weight:800;color:var(--brand);
+      text-shadow:0 8px 32px rgba(56,189,248,.45);
+    }
+    .sub{margin-top:6px;color:var(--muted);font-size:14px}
 
-        .auth-card {
-            background: rgba(30, 30, 46, 0.95);
-            backdrop-filter: blur(10px);
-            border: 2px solid #7c3aed;
-            border-radius: 15px;
-            padding: 40px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-            animation: slideUp 0.5s ease;
-        }
+    /* Auth card */
+    .wrap{flex:1; display:grid; place-items:center; padding:20px; position:relative}
+    .card{
+      width:100%; max-width:430px;
+      background:linear-gradient(180deg, rgba(15,23,42,.90), rgba(16,18,34,.92));
+      border:1.5px solid rgba(124,58,237,.45);
+      border-radius:16px; padding:24px 22px;
+      box-shadow:0 24px 64px rgba(56,189,248,.18), 0 16px 48px rgba(124,58,237,.18);
+      animation:rise .35s ease; backdrop-filter: blur(6px);
+    }
+    @keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
 
-        @keyframes slideUp {
-            from {
-                opacity: 0;
-                transform: translateY(30px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
+    .tabs{display:flex;gap:8px;justify-content:center;margin-bottom:14px}
+    .pill{
+      border:1px solid rgba(56,189,248,.45);
+      background:transparent;color:#cdeefe;
+      padding:8px 14px;border-radius:999px;font-weight:800;font-size:13px;cursor:pointer;transition:.2s
+    }
+    .pill.active,.pill:hover{
+      background:linear-gradient(135deg,#22d3ee,#38bdf8);
+      color:#051223;border-color:#22d3ee; box-shadow:0 10px 26px rgba(34,211,238,.35)
+    }
 
-        .logo {
-            text-align: center;
-            margin-bottom: 30px;
-            font-size: 50px;
-            color: #7c3aed;
-        }
+    .title{color:#7c3aed; font-weight:800; text-align:center; font-size:22px;margin-top:2px}
+    .subtitle{color:var(--muted); text-align:center; font-size:14px; margin:6px 0 16px}
 
-        .title {
-            text-align: center;
-            font-size: 24px;
-            font-weight: bold;
-            margin-bottom: 10px;
-            color: #7c3aed;
-        }
+    .row{display:grid;gap:12px}
+    .fg label{display:block;margin-bottom:6px;color:var(--muted);font-size:13px}
+    .input{
+      width:100%; padding:12px; background:#10162b;
+      border:1px solid #7c3aed; border-radius:12px; color:#dbeafe; font-size:14px
+    }
+    .btn{
+      width:100%; padding:12px; border:none; border-radius:12px; cursor:pointer;
+      font-weight:800; color:#001018; background:linear-gradient(135deg,#22d3ee,#38bdf8);
+      box-shadow:0 14px 36px rgba(56,189,248,.32); transition:.2s; margin-top:4px
+    }
+    .btn:hover{transform:translateY(-2px)}
+    .alt{margin-top:10px;text-align:center;color:var(--muted);font-size:14px}
+    .alt a{color:#38bdf8;cursor:pointer;font-weight:800}
 
-        .subtitle {
-            text-align: center;
-            color: #a78bfa;
-            margin-bottom: 30px;
-            font-size: 14px;
-        }
+    .alert{display:none;padding:10px;border-radius:10px;font-size:14px;margin-bottom:10px}
+    .err{background:rgba(239,68,68,.1);border:1px solid #ef4444;color:#fca5a5}
+    .ok{background:rgba(34,197,94,.1);border:1px solid #22c55e;color:#86efac}
 
-        .form-group {
-            margin-bottom: 20px;
-        }
-
-        .form-group label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: 500;
-            color: #a78bfa;
-            font-size: 14px;
-        }
-
-        .form-group input {
-            width: 100%;
-            padding: 12px;
-            background: rgba(50, 50, 70, 0.6);
-            border: 1px solid #7c3aed;
-            border-radius: 8px;
-            color: #e0e0e0;
-            font-size: 14px;
-            transition: all 0.3s ease;
-        }
-
-        .form-group input:focus {
-            outline: none;
-            border-color: #a78bfa;
-            background: rgba(50, 50, 70, 0.8);
-            box-shadow: 0 0 15px rgba(124, 58, 237, 0.3);
-        }
-
-        .form-group input::placeholder {
-            color: #666;
-        }
-
-        .submit-btn {
-            width: 100%;
-            padding: 12px;
-            background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-weight: 600;
-            font-size: 16px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            margin-bottom: 15px;
-        }
-
-        .submit-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 25px rgba(124, 58, 237, 0.4);
-        }
-
-        .submit-btn:active {
-            transform: translateY(0);
-        }
-
-        .toggle-form {
-            text-align: center;
-            color: #a78bfa;
-            font-size: 14px;
-        }
-
-        .toggle-form a {
-            color: #7c3aed;
-            cursor: pointer;
-            text-decoration: none;
-            font-weight: 600;
-            transition: all 0.3s ease;
-        }
-
-        .toggle-form a:hover {
-            color: #a78bfa;
-            text-decoration: underline;
-        }
-
-        .error {
-            background: rgba(239, 68, 68, 0.1);
-            border: 1px solid #ef4444;
-            color: #fca5a5;
-            padding: 12px;
-            border-radius: 8px;
-            margin-bottom: 15px;
-            font-size: 14px;
-            display: none;
-        }
-
-        .success {
-            background: rgba(34, 197, 94, 0.1);
-            border: 1px solid #22c55e;
-            color: #86efac;
-            padding: 12px;
-            border-radius: 8px;
-            margin-bottom: 15px;
-            font-size: 14px;
-            display: none;
-        }
-
-        .hidden {
-            display: none;
-        }
-
-        .submit-btn:disabled {
-            opacity: 0.7;
-            cursor: not-allowed;
-        }
-
-        @media (max-width: 480px) {
-            .auth-card {
-                padding: 30px 20px;
-            }
-
-            .title {
-                font-size: 20px;
-            }
-        }
-    </style>
+    .hidden{display:none}
+  </style>
 </head>
 <body>
-    <div class="auth-container">
-        <div class="auth-card">
-            <!-- Logo -->
-            <div class="logo">
-                <i class="fas fa-briefcase"></i>
-            </div>
+  <!-- Visual background layers -->
+  <div class="bg" aria-hidden="true">
+    <div class="grid"></div>
+    <div class="orb one" style="left:-120px; top:-80px;"></div>
+    <div class="orb two"></div>
+    <div class="orb three"></div>
+  </div>
 
-            <!-- Login Form -->
-            <div id="loginForm">
-                <div class="title">JobTracker</div>
-                <div class="subtitle">Track Your Job Journey</div>
-                
-                <div class="error" id="loginError"></div>
-                <div class="success" id="loginSuccess"></div>
+  <!-- Brand -->
+  <div class="top">
+    <div class="brand"><i class="fas fa-briefcase"></i> JobTracker</div>
+    <div class="sub">Cloud‑Native Job Application Management System</div>
+  </div>
 
-                <form id="loginFormElement" onsubmit="handleLogin(event)">
-                    <div class="form-group">
-                        <label><i class="fas fa-user"></i> Username</label>
-                        <input type="text" id="login_username" placeholder="Enter your username" required>
-                    </div>
+  <div class="wrap">
+    <div class="card">
+      <!-- Tab pills -->
+      <div class="tabs">
+        <button id="tabLogin" class="pill active" onclick="showTab('login')"><i class="fas fa-sign-in-alt"></i> Login</button>
+        <button id="tabSignup" class="pill" onclick="showTab('signup')"><i class="fas fa-user-plus"></i> Sign Up</button>
+      </div>
 
-                    <div class="form-group">
-                        <label><i class="fas fa-lock"></i> Password</label>
-                        <input type="password" id="login_password" placeholder="Enter your password" required>
-                    </div>
+      <!-- Login -->
+      <div id="loginPane">
+        <div class="title">Welcome back</div>
+        <div class="subtitle">Sign in to track your job journey</div>
 
-                    <button type="submit" class="submit-btn">
-                        <i class="fas fa-sign-in-alt"></i> Login
-                    </button>
-                </form>
+        <div id="loginError" class="alert err"></div>
+        <div id="loginOk" class="alert ok"></div>
 
-                <div class="toggle-form">
-                    Don't have an account? <a onclick="toggleForm()">Sign Up</a>
-                </div>
-            </div>
+        <form id="loginForm" onsubmit="handleLogin(event)" class="row">
+          <div class="fg">
+            <label><i class="fas fa-user"></i> Username</label>
+            <input id="login_username" class="input" type="text" required placeholder="Enter your username"/>
+          </div>
+          <div class="fg">
+            <label><i class="fas fa-lock"></i> Password</label>
+            <input id="login_password" class="input" type="password" required placeholder="Enter your password"/>
+          </div>
+          <button class="btn" type="submit"><i class="fas fa-arrow-right-to-bracket"></i> Login</button>
+        </form>
 
-            <!-- Signup Form -->
-            <div id="signupForm" class="hidden">
-                <div class="title">Create Account</div>
-                <div class="subtitle">Join JobTracker Today</div>
-                
-                <div class="error" id="signupError"></div>
-                <div class="success" id="signupSuccess"></div>
+        <div class="alt">Don’t have an account? <a onclick="showTab('signup')">Create one</a></div>
+      </div>
 
-                <form id="signupFormElement" onsubmit="handleSignup(event)">
-                    <div class="form-group">
-                        <label><i class="fas fa-user"></i> Username</label>
-                        <input type="text" id="signup_username" placeholder="Choose a username" required>
-                    </div>
+      <!-- Signup -->
+      <div id="signupPane" class="hidden">
+        <div class="title">Create account</div>
+        <div class="subtitle">Join JobTracker today</div>
 
-                    <div class="form-group">
-                        <label><i class="fas fa-envelope"></i> Email</label>
-                        <input type="email" id="signup_email" placeholder="Enter your email" required>
-                    </div>
+        <div id="signupError" class="alert err"></div>
+        <div id="signupOk" class="alert ok"></div>
 
-                    <div class="form-group">
-                        <label><i class="fas fa-lock"></i> Password</label>
-                        <input type="password" id="signup_password" placeholder="Create a password (min 6 chars)" required>
-                    </div>
+        <form id="signupForm" onsubmit="handleSignup(event)" class="row">
+          <div class="fg">
+            <label><i class="fas fa-user"></i> Username</label>
+            <input id="signup_username" class="input" type="text" required placeholder="Choose a username"/>
+          </div>
+          <div class="fg">
+            <label><i class="fas fa-envelope"></i> Email</label>
+            <input id="signup_email" class="input" type="email" required placeholder="Enter your email"/>
+          </div>
+          <div class="fg">
+            <label><i class="fas fa-lock"></i> Password</label>
+            <input id="signup_password" class="input" type="password" required placeholder="Create a password (min 6 chars)"/>
+          </div>
+          <div class="fg">
+            <label><i class="fas fa-lock"></i> Confirm Password</label>
+            <input id="signup_confirm" class="input" type="password" required placeholder="Confirm your password"/>
+          </div>
+          <button class="btn" type="submit"><i class="fas fa-user-plus"></i> Sign Up</button>
+        </form>
 
-                    <div class="form-group">
-                        <label><i class="fas fa-lock"></i> Confirm Password</label>
-                        <input type="password" id="signup_confirm" placeholder="Confirm your password" required>
-                    </div>
-
-                    <button type="submit" class="submit-btn">
-                        <i class="fas fa-user-plus"></i> Sign Up
-                    </button>
-                </form>
-
-                <div class="toggle-form">
-                    Already have an account? <a onclick="toggleForm()">Login</a>
-                </div>
-            </div>
-        </div>
+        <div class="alt">Already have an account? <a onclick="showTab('login')">Login</a></div>
+      </div>
     </div>
+  </div>
 
-    <script>
-        // Toggle between login and signup forms
-        function toggleForm() {
-            document.getElementById('loginForm').classList.toggle('hidden');
-            document.getElementById('signupForm').classList.toggle('hidden');
-            document.getElementById('loginFormElement').reset();
-            document.getElementById('signupFormElement').reset();
-            document.getElementById('loginError').style.display = 'none';
-            document.getElementById('signupError').style.display = 'none';
+  <script>
+    function showTab(which){
+      const loginPane=document.getElementById('loginPane');
+      const signupPane=document.getElementById('signupPane');
+      const tabLogin=document.getElementById('tabLogin');
+      const tabSignup=document.getElementById('tabSignup');
+      ['loginError','loginOk','signupError','signupOk'].forEach(id=>{const e=document.getElementById(id); if(e) e.style.display='none';});
+      if(which==='login'){
+        loginPane.classList.remove('hidden'); signupPane.classList.add('hidden');
+        tabLogin.classList.add('active'); tabSignup.classList.remove('active');
+        document.getElementById('loginForm').reset();
+      }else{
+        signupPane.classList.remove('hidden'); loginPane.classList.add('hidden');
+        tabSignup.classList.add('active'); tabLogin.classList.remove('active');
+        document.getElementById('signupForm').reset();
+      }
+    }
+
+    async function handleLogin(e){
+      e.preventDefault();
+      const username=document.getElementById('login_username').value.trim();
+      const password=document.getElementById('login_password').value;
+      const err=document.getElementById('loginError');
+      const ok=document.getElementById('loginOk');
+      try{
+        const res=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username,password})});
+        const data=await res.json();
+        if(data.success){
+          ok.textContent='Login successful! Redirecting...'; ok.style.display='block';
+          setTimeout(()=> location.href='/dashboard', 900);
+        }else{
+          err.textContent=data.message||'Login failed'; err.style.display='block';
         }
+      }catch(_){
+        err.textContent='Network error. Please try again.'; err.style.display='block';
+      }
+    }
 
-        // Handle Login
-        async function handleLogin(event) {
-            event.preventDefault();
-            
-            const username = document.getElementById('login_username').value;
-            const password = document.getElementById('login_password').value;
-            const errorDiv = document.getElementById('loginError');
-            const successDiv = document.getElementById('loginSuccess');
+    async function handleSignup(e){
+      e.preventDefault();
+      const username=document.getElementById('signup_username').value.trim();
+      const email=document.getElementById('signup_email').value.trim();
+      const password=document.getElementById('signup_password').value;
+      const confirm=document.getElementById('signup_confirm').value;
+      const err=document.getElementById('signupError');
+      const ok=document.getElementById('signupOk');
 
-            try {
-                const response = await fetch('/api/login', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username, password })
-                });
+      if(password!==confirm){ err.textContent='Passwords do not match'; err.style.display='block'; return; }
+      if(password.length<6){ err.textContent='Password must be at least 6 characters'; err.style.display='block'; return; }
 
-                const data = await response.json();
-
-                if (data.success) {
-                    successDiv.textContent = 'Login successful! Redirecting...';
-                    successDiv.style.display = 'block';
-                    setTimeout(() => window.location.href = '/dashboard', 1500);
-                } else {
-                    errorDiv.textContent = data.message || 'Login failed';
-                    errorDiv.style.display = 'block';
-                }
-            } catch (error) {
-                errorDiv.textContent = 'Network error. Please try again.';
-                errorDiv.style.display = 'block';
-            }
+      try{
+        const res=await fetch('/api/signup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username,email,password})});
+        const data=await res.json();
+        if(data.success){
+          ok.textContent='Account created! Switching to login...'; ok.style.display='block';
+          setTimeout(()=> showTab('login'), 900);
+        }else{
+          err.textContent=data.message||'Signup failed'; err.style.display='block';
         }
-
-        // Handle Signup
-        async function handleSignup(event) {
-            event.preventDefault();
-            
-            const username = document.getElementById('signup_username').value;
-            const email = document.getElementById('signup_email').value;
-            const password = document.getElementById('signup_password').value;
-            const confirm = document.getElementById('signup_confirm').value;
-            const errorDiv = document.getElementById('signupError');
-            const successDiv = document.getElementById('signupSuccess');
-
-            // Validate passwords match
-            if (password !== confirm) {
-                errorDiv.textContent = 'Passwords do not match';
-                errorDiv.style.display = 'block';
-                return;
-            }
-
-            // Validate password length
-            if (password.length < 6) {
-                errorDiv.textContent = 'Password must be at least 6 characters';
-                errorDiv.style.display = 'block';
-                return;
-            }
-
-            try {
-                const response = await fetch('/api/signup', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username, email, password })
-                });
-
-                const data = await response.json();
-
-                if (data.success) {
-                    successDiv.textContent = 'Account created! Switching to login...';
-                    successDiv.style.display = 'block';
-                    setTimeout(() => {
-                        toggleForm();
-                        document.getElementById('signupSuccess').style.display = 'none';
-                    }, 1500);
-                } else {
-                    errorDiv.textContent = data.message || 'Signup failed';
-                    errorDiv.style.display = 'block';
-                }
-            } catch (error) {
-                errorDiv.textContent = 'Network error. Please try again.';
-                errorDiv.style.display = 'block';
-            }
-        }
-    </script>
+      }catch(_){
+        err.textContent='Network error. Please try again.'; err.style.display='block';
+      }
+    }
+  </script>
 </body>
 </html>

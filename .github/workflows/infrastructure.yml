@@ -38,9 +38,6 @@ jobs:
         working-directory: environment/${{ env.ENVIRONMENT }}
         run: terraform init -upgrade
 
-      - name: Import existing Target Group
-        working-directory: environment/${{ env.ENVIRONMENT }}
-        run: terraform import module.compute.aws_lb_target_group.app jobtracker-tg-dev
 
       - name: Terraform Plan
         env:
