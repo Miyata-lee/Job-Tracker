@@ -8,7 +8,7 @@ env:
   ENVIRONMENT: dev
   ASG_NAME: jobtracker-asg-dev
   LB_NAME: jobtracker-alb-dev
-  TG_NAME: jobtracker-tg-dev         
+  TG_NAME: jobtracker-tg-dev
   APP_PORT: 5000
   HEALTH_PATH: /health
 
@@ -16,32 +16,30 @@ permissions:
   id-token: write
   contents: read
 
-
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
     permissions:
       id-token: write
       contents: read
 
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v5
         with:
-            aws-region: ${{ env.AWS_REGION }}
-            role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
-            role-session-name: jobtracker-app-deploy
-            audience: sts.amazonaws.com
-
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+          role-session-name: jobtracker-app-deploy
+          audience: sts.amazonaws.com
 
       - name: Prep SSH key
         run: |
           install -m 600 /dev/null ~/.ssh/key.pem
           echo "${{ secrets.EC2_SSH_PRIVATE_KEY }}" > ~/.ssh/key.pem
+
 
       - name: Get InService EC2 instance IDs
         id: asg
