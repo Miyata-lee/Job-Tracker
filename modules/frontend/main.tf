@@ -1,10 +1,5 @@
 data "aws_caller_identity" "current" {}
 
-# Reference to ALB from compute module
-data "aws_lb" "main" {
-  name = "${var.project_name}-alb-${var.environment}"
-}
-
 # S3 Bucket for frontend (static assets)
 resource "aws_s3_bucket" "frontend" {
   bucket = "${var.project_name}-frontend-${var.environment}-${data.aws_caller_identity.current.account_id}"
@@ -135,7 +130,7 @@ resource "aws_cloudfront_distribution" "frontend" {
 
   # Origin 2: ALB (Backend API + Pages)
   origin {
-    domain_name = data.aws_lb.main.dns_name
+    domain_name = var.alb_dns_name
     origin_id   = "ALBBackend"
 
     custom_origin_config {
@@ -280,7 +275,6 @@ resource "aws_cloudfront_distribution" "frontend" {
   depends_on = [
     aws_s3_bucket_policy.logs,
     aws_s3_bucket.logs,
-    aws_s3_bucket_public_access_block.logs,
-    data.aws_lb.main
+    aws_s3_bucket_public_access_block.logs
   ]
 }
