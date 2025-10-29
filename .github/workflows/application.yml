@@ -99,14 +99,19 @@ jobs:
         run: FRONTEND_DIR=application/frontend-app/templates bash scripts/deploy-frontend.sh
 
 
-      - name: Health Check (HTTP /health)
+      - name: Health Check (via ALB)
         run: |
-          EC2_IPS=$(cat /tmp/ec2_ips.txt)
-          for ip in $EC2_IPS; do
-            echo "Checking http://$ip:5000/health"
-            for i in {1..30}; do
-              curl -fsS "http://$ip:5000/health" && break
-              [ $i -eq 30 ] && { echo "Health check failed on $ip"; exit 1; }
-              sleep 2
-            done
+          ALB_DNS=$(aws elbv2 describe-load-balancers \
+            --names jobtracker-alb-dev \
+            --query 'LoadBalancers[0].DNSName' --output text)
+          echo "Checking http://${ALB_DNS}/health"
+          for i in {1..60}; do
+            if curl -fsS --connect-timeout 2 --max-time 3 "http://${ALB_DNS}/health" >/dev/null; then
+              echo "✓ ALB endpoint healthy"
+              exit 0
+            fi
+            sleep 5
           done
+          echo "✗ ALB health check timed out"
+          exit 1
+
