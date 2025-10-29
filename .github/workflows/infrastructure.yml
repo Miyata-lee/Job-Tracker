@@ -54,9 +54,10 @@ jobs:
         run: terraform apply -auto-approve tfplan
 
 
-      - name: Trigger Application Deployment 
-        if: success() 
-        uses: benc-uk/workflow-dispatch@v1 
-        with: 
-        workflow: Deploy Application 
-        ref: ${{ github.ref }}
+      - name: Trigger Application Deployment
+        if: success()
+        uses: benc-uk/workflow-dispatch@v1
+        with:
+          workflow: Deploy Application
+          ref: ${{ github.ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
