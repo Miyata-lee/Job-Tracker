@@ -1,5 +1,10 @@
 data "aws_caller_identity" "current" {}
 
+# Reference to ALB from compute module
+data "aws_lb" "main" {
+  name = "${var.project_name}-alb-${var.environment}"
+}
+
 # S3 Bucket for frontend (static assets)
 resource "aws_s3_bucket" "frontend" {
   bucket = "${var.project_name}-frontend-${var.environment}-${data.aws_caller_identity.current.account_id}"
@@ -41,9 +46,7 @@ resource "aws_s3_bucket" "logs" {
 resource "aws_s3_bucket_public_access_block" "logs" {
   bucket = aws_s3_bucket.logs.id
 
-  
   block_public_policy     = false
-  
   restrict_public_buckets = true
 }
 
@@ -77,6 +80,7 @@ resource "aws_s3_bucket_policy" "logs" {
 
   depends_on = [aws_s3_bucket_public_access_block.logs]
 }
+
 # Allow CloudFront to write logs (required for logging_config)
 resource "aws_s3_bucket_ownership_controls" "logs" {
   bucket = aws_s3_bucket.logs.id
@@ -91,7 +95,6 @@ resource "aws_s3_bucket_acl" "logs" {
   bucket     = aws_s3_bucket.logs.id
   acl        = "log-delivery-write"
 }
-
 
 # CloudFront Origin Access Identity (OAI)
 resource "aws_cloudfront_origin_access_identity" "oai" {
@@ -117,7 +120,10 @@ resource "aws_s3_bucket_policy" "frontend" {
     ]
   })
 }
+
+# CloudFront Distribution with dual origins (S3 + ALB)
 resource "aws_cloudfront_distribution" "frontend" {
+  # Origin 1: S3 (Frontend static files)
   origin {
     domain_name = aws_s3_bucket.frontend.bucket_regional_domain_name
     origin_id   = "S3Frontend"
@@ -127,12 +133,26 @@ resource "aws_cloudfront_distribution" "frontend" {
     }
   }
 
+  # Origin 2: ALB (Backend API + Pages)
+  origin {
+    domain_name = data.aws_lb.main.dns_name
+    origin_id   = "ALBBackend"
+
+    custom_origin_config {
+      http_port              = 80
+      https_port             = 443
+      origin_protocol_policy = "http-only"
+      origin_ssl_protocols   = ["TLSv1.2"]
+    }
+  }
+
   enabled             = true
   is_ipv6_enabled     = true
   default_root_object = "index.html"
 
+  # Default behavior: S3 (static files - JS, CSS, images, etc)
   default_cache_behavior {
-    allowed_methods  = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
+    allowed_methods  = ["GET", "HEAD", "OPTIONS"]
     cached_methods   = ["GET", "HEAD"]
     target_origin_id = "S3Frontend"
 
@@ -147,6 +167,92 @@ resource "aws_cloudfront_distribution" "frontend" {
     min_ttl                = 0
     default_ttl            = 3600
     max_ttl                = 86400
+    compress               = true
+  }
+
+  # Behavior 1: /api/* → ALB (API calls - no caching, all methods)
+  ordered_cache_behavior {
+    path_pattern     = "/api/*"
+    allowed_methods  = ["GET", "HEAD", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"]
+    cached_methods   = ["GET", "HEAD"]
+    target_origin_id = "ALBBackend"
+
+    forwarded_values {
+      query_string = true
+      headers      = ["*"]
+      cookies {
+        forward = "all"
+      }
+    }
+
+    viewer_protocol_policy = "https-only"
+    min_ttl                = 0
+    default_ttl            = 0
+    max_ttl                = 0
+    compress               = true
+  }
+
+  # Behavior 2: /auth → ALB (login/signup page)
+  ordered_cache_behavior {
+    path_pattern     = "/auth"
+    allowed_methods  = ["GET", "HEAD", "OPTIONS"]
+    cached_methods   = ["GET", "HEAD"]
+    target_origin_id = "ALBBackend"
+
+    forwarded_values {
+      query_string = false
+      cookies {
+        forward = "all"
+      }
+    }
+
+    viewer_protocol_policy = "https-only"
+    min_ttl                = 0
+    default_ttl            = 0
+    max_ttl                = 0
+    compress               = true
+  }
+
+  # Behavior 3: /dashboard → ALB (dashboard page)
+  ordered_cache_behavior {
+    path_pattern     = "/dashboard"
+    allowed_methods  = ["GET", "HEAD", "OPTIONS"]
+    cached_methods   = ["GET", "HEAD"]
+    target_origin_id = "ALBBackend"
+
+    forwarded_values {
+      query_string = false
+      cookies {
+        forward = "all"
+      }
+    }
+
+    viewer_protocol_policy = "https-only"
+    min_ttl                = 0
+    default_ttl            = 0
+    max_ttl                = 0
+    compress               = true
+  }
+
+  # Behavior 4: / (root) → ALB (redirects to /auth or /dashboard)
+  ordered_cache_behavior {
+    path_pattern     = "/"
+    allowed_methods  = ["GET", "HEAD", "OPTIONS"]
+    cached_methods   = ["GET", "HEAD"]
+    target_origin_id = "ALBBackend"
+
+    forwarded_values {
+      query_string = false
+      cookies {
+        forward = "all"
+      }
+    }
+
+    viewer_protocol_policy = "https-only"
+    min_ttl                = 0
+    default_ttl            = 0
+    max_ttl                = 0
+    compress               = true
   }
 
   price_class = "PriceClass_100"
@@ -174,6 +280,7 @@ resource "aws_cloudfront_distribution" "frontend" {
   depends_on = [
     aws_s3_bucket_policy.logs,
     aws_s3_bucket.logs,
-    aws_s3_bucket_public_access_block.logs
+    aws_s3_bucket_public_access_block.logs,
+    data.aws_lb.main
   ]
 }
