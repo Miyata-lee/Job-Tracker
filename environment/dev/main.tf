@@ -56,6 +56,6 @@ module "frontend" {
 
   project_name = var.project_name
   environment  = var.environment
-  alb_dns_name = module.compute.alb_dns_name
+  alb_dns_name = module.compute.alb_dns_name 
   depends_on = [ module.compute ]
 }
