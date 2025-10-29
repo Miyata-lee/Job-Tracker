@@ -91,7 +91,7 @@ resource "aws_lb" "main" {
 # Target Group for ALB
 resource "aws_lb_target_group" "app" {
   name        = "${var.project_name}-tg-${var.environment}"
-  port        = 80
+  port        = 5000
   protocol    = "HTTP"
   vpc_id      = var.vpc_id
   target_type = "instance"
@@ -99,9 +99,9 @@ resource "aws_lb_target_group" "app" {
   health_check {
     healthy_threshold   = 2
     unhealthy_threshold = 2
-    timeout             = 3
+    timeout             = 5
     interval            = 30
-    path                = "/"
+    path                = "/health"
     matcher             = "200"
   }
 
