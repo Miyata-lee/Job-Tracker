@@ -6,7 +6,7 @@ set -euo pipefail
 PROJECT_NAME="${PROJECT_NAME:-jobtracker}"
 ENVIRONMENT="${ENVIRONMENT:-dev}"
 AWS_REGION="${AWS_REGION:-us-east-1}"
-FRONTEND_DIR="frontend-app/templates"
+FRONTEND_DIR="${FRONTEND_DIR:-application/frontend-app/templates}" 
 CF_ALIAS_MATCH="${CF_ALIAS_MATCH:-}"   # e.g. dXXXXXXXX.cloudfront.net or your CNAME
 
 log(){ echo "[$(date +'%F %T')] $*"; }
