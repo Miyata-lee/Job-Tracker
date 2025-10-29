@@ -16,56 +16,47 @@ permissions:
   contents: write
   actions: write
 
-
 jobs:
   terraform:
     runs-on: ubuntu-latest
-    
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Configure AWS credentials via OIDC
-        uses: aws-actions/configure-aws-credentials@v4
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v5
         with:
           role-to-assume: arn:aws:iam::107411014674:role/github-jobtracker-role
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v2
+        uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: 1.5.0
+          terraform_version: 1.6.6
 
       - name: Terraform Init
-        run: |
-          cd environment/${{ env.ENVIRONMENT }}
-          terraform init
+        working-directory: environment/${{ env.ENVIRONMENT }}
+        run: terraform init -upgrade
 
       - name: Terraform Plan
         env:
           TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
           TF_VAR_ec2_key_pair_name: keyweb
-        run: |
-          cd environment/${{ env.ENVIRONMENT }}
-          terraform plan -out=tfplan
+        working-directory: environment/${{ env.ENVIRONMENT }}
+        run: terraform plan -out=tfplan
 
       - name: Terraform Apply
+        if: github.ref_name == 'main'
         env:
           TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
           TF_VAR_ec2_key_pair_name: keyweb
-        run: |
-          cd environment/${{ env.ENVIRONMENT }}
-          terraform apply -auto-approve tfplan
-
-      - name: Infrastructure Deployment Complete
-        run: |
-          echo "✓ Infrastructure deployed successfully!"
-          echo "Environment: ${{ env.ENVIRONMENT }}"
-          echo "Timestamp: $(date)"
+        working-directory: environment/${{ env.ENVIRONMENT }}
+        run: terraform apply -auto-approve tfplan
 
       - name: Trigger Application Deployment
         if: success()
-        uses: benc-uk/workflow-dispatch@v1
+        uses: step-security/workflow-dispatch@v1
         with:
           workflow: Deploy Application
           ref: ${{ github.ref }}
+          wait-for-completion: false

@@ -1,8 +1,7 @@
 #!/bin/bash
-# File: scripts/deploy-ec2.sh
-# JobTracker EC2 Flask App Deployment Script
+# scripts/deploy-ec2.sh 
 
-set -e
+set -euo pipefail
 
 APP_DIR="/home/ec2-user/jobtracker"
 REPO_URL="https://github.com/Miyata-lee/Job-Tracker.git"
@@ -12,152 +11,83 @@ APP_PORT=5000
 SERVICE_NAME="jobtracker"
 LOG_FILE="/tmp/jobtracker-ec2-deploy.log"
 
-GREEN='\033[0;32m'
-RED='\033[0;31m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
+log(){ echo "[$(date +'%F %T')] $*"; }
 
-log() {
-    echo -e "${BLUE}[$(date +'%Y-%m-%d %H:%M:%S')]${NC} $1" | tee -a $LOG_FILE
-}
+trap 'log "Deployment failed at line $LINENO"; exit 1' ERR
 
-log_success() {
-    echo -e "${GREEN}[$(date +'%Y-%m-%d %H:%M:%S')] ✓ $1${NC}" | tee -a $LOG_FILE
-}
+log "Stopping existing service if running"
+sudo systemctl stop "$SERVICE_NAME" || true
 
-log_error() {
-    echo -e "${RED}[$(date +'%Y-%m-%d %H:%M:%S')] ✗ $1${NC}" | tee -a $LOG_FILE
-}
-
-error_exit() {
-    log_error "$1"
-    exit 1
-}
-
-trap 'error_exit "Deployment failed at line $LINENO"' ERR
-
-log "=========================================="
-log "JobTracker EC2 Deployment Starting"
-log "=========================================="
-
-log "Step 1: Stopping service"
-if sudo systemctl is-active --quiet $SERVICE_NAME; then
-    sudo systemctl stop $SERVICE_NAME
-    log_success "Service stopped"
+log "Installing OS deps (AL2023)"
+if command -v dnf >/dev/null 2>&1; then
+  sudo dnf -y update
+  sudo dnf -y install python3 python3.11 python3.11-venv git
 else
-    log "Service not running"
+  sudo yum -y update
+  sudo yum -y install python3 git
 fi
 
-log "Step 2: Installing dependencies"
-sudo yum update -y
-sudo yum install -y python3 python3-pip python3-venv git
+PY_BIN=$(command -v python3.11 || command -v python3)
+PIP_BIN="$PY_BIN -m pip"
 
-log "Step 3: Repository management"
-if [ -d "$APP_DIR" ]; then
-    log "Updating existing repository..."
-    cd $APP_DIR
-    git fetch origin
-    git checkout $BRANCH
-    git reset --hard origin/$BRANCH
-    log_success "Repository updated"
+log "Clone or update repository"
+if [ -d "$APP_DIR/.git" ]; then
+  git -C "$APP_DIR" fetch origin
+  git -C "$APP_DIR" checkout "$BRANCH"
+  git -C "$APP_DIR" reset --hard "origin/$BRANCH"
 else
-    log "Cloning repository..."
-    git clone -b $BRANCH $REPO_URL $APP_DIR
-    cd $APP_DIR
-    log_success "Repository cloned"
+  git clone -b "$BRANCH" "$REPO_URL" "$APP_DIR"
 fi
 
-log "Step 4: Setting up virtual environment"
-if [ ! -d "$VENV_DIR" ]; then
-    python3 -m venv $VENV_DIR
-    log_success "Virtual environment created"
-fi
+log "Create virtual environment"
+[ -d "$VENV_DIR" ] || "$PY_BIN" -m venv "$VENV_DIR"
+source "$VENV_DIR/bin/activate"
 
-log "Step 5: Installing Python packages"
-source $VENV_DIR/bin/activate
-pip install --upgrade pip --quiet
-pip install -r application/requirements.txt --quiet
-pip install gunicorn --quiet
-log_success "Python packages installed"
+log "Install Python dependencies"
+pip install --upgrade pip
+pip install -r "$APP_DIR/application/requirements.txt"
+pip install gunicorn mysql-connector-python flask-cors
 
-log "Step 6: Creating environment configuration"
-cat > $APP_DIR/application/.env << EOF
-DB_HOST=$DB_HOST
-DB_USER=$DB_USER
-DB_PASSWORD=$DB_PASSWORD
-DB_NAME=$DB_NAME
-SECRET_KEY=$SECRET_KEY
+log "Write environment file"
+cat > "$APP_DIR/application/.env" <<EOF
+DB_HOST=${DB_HOST}
+DB_USER=${DB_USER}
+DB_PASSWORD=${DB_PASSWORD}
+DB_NAME=${DB_NAME}
+SECRET_KEY=${SECRET_KEY}
+CORS_ORIGINS=${CORS_ORIGINS:-*}
 FLASK_ENV=production
-FLASK_APP=app:app
 EOF
-chmod 600 $APP_DIR/application/.env
-log_success "Environment file created"
+chmod 600 "$APP_DIR/application/.env"
 
-log "Step 7: Creating systemd service"
-sudo tee /etc/systemd/system/$SERVICE_NAME.service > /dev/null << EOF
+log "Create systemd service"
+sudo tee /etc/systemd/system/${SERVICE_NAME}.service >/dev/null <<EOF
 [Unit]
-Description=JobTracker Flask Application
+Description=JobTracker Flask via Gunicorn
 After=network.target
 
 [Service]
-Type=notify
+Type=simple
 User=ec2-user
-WorkingDirectory=$APP_DIR/application
-Environment="PATH=$VENV_DIR/bin"
+WorkingDirectory=${APP_DIR}/application
+Environment="PATH=${VENV_DIR}/bin"
 Environment="PYTHONUNBUFFERED=1"
-ExecStart=$VENV_DIR/bin/gunicorn \
-    --workers 4 \
-    --worker-class sync \
-    --bind 0.0.0.0:$APP_PORT \
-    --timeout 30 \
-    --access-logfile - \
-    --error-logfile - \
-    app:app
+ExecStart=${VENV_DIR}/bin/gunicorn --workers 3 --bind 0.0.0.0:${APP_PORT} app:app
 Restart=always
-RestartSec=10
+RestartSec=5
 StandardOutput=journal
 StandardError=journal
 
 [Install]
 WantedBy=multi-user.target
 EOF
-log_success "Systemd service created"
 
-log "Step 8: Starting service"
+log "Start service"
 sudo systemctl daemon-reload
-sudo systemctl enable $SERVICE_NAME
-sudo systemctl start $SERVICE_NAME
+sudo systemctl enable "$SERVICE_NAME"
+sudo systemctl restart "$SERVICE_NAME"
+
+log "Quick health probe"
 sleep 2
-# Show service status and logs
-echo "Service status:"
-sudo systemctl status jobtracker || true
-echo "Recent logs:"
-sudo journalctl -u jobtracker -n 20 || true
-
-if sudo systemctl is-active --quiet $SERVICE_NAME; then
-    log_success "Service started"
-else
-    error_exit "Service failed to start"
-fi
-
-
-log "Step 9: Health check"
-for i in {1..30}; do
-    if curl -f http://localhost:$APP_PORT/health 2>/dev/null || curl -f http://localhost:$APP_PORT 2>/dev/null; then
-        log_success "Application is responding"
-        break
-    fi
-    if [ $i -eq 30 ]; then
-        error_exit "Application health check failed"
-    fi
-    sleep 2
-done
-
-log "=========================================="
-log_success "EC2 Deployment Complete!"
-log "=========================================="
-log "Service: $SERVICE_NAME"
-log "Running on: http://localhost:$APP_PORT"
-log "Branch: $BRANCH"
-log "=========================================="
+curl -fsS "http://127.0.0.1:${APP_PORT}/health" || (journalctl -u "$SERVICE_NAME" -n 200 --no-pager; exit 1)
+log "EC2 deployment finished"

@@ -1,88 +1,43 @@
 #!/bin/bash
-# File: scripts/deploy-frontend.sh
-# JobTracker S3 + CloudFront Deployment Script
+# scripts/deploy-frontend.sh (fixed)
 
-set -e
+set -euo pipefail
 
 PROJECT_NAME="${PROJECT_NAME:-jobtracker}"
 ENVIRONMENT="${ENVIRONMENT:-dev}"
 AWS_REGION="${AWS_REGION:-us-east-1}"
 FRONTEND_DIR="frontend-app/templates"
-LOG_FILE="/tmp/jobtracker-frontend-deploy.log"
+CF_ALIAS_MATCH="${CF_ALIAS_MATCH:-}"   # e.g. dXXXXXXXX.cloudfront.net or your CNAME
 
-GREEN='\033[0;32m'
-RED='\033[0;31m'
-BLUE='\033[0;34m'
-NC='\033[0m'
+log(){ echo "[$(date +'%F %T')] $*"; }
 
-log() {
-    echo -e "${BLUE}[$(date +'%Y-%m-%d %H:%M:%S')]${NC} $1" | tee -a $LOG_FILE
-}
+command -v aws >/dev/null || { echo "AWS CLI not installed"; exit 1; }
+[ -d "$FRONTEND_DIR" ] || { echo "Missing $FRONTEND_DIR"; exit 1; }
 
-log_success() {
-    echo -e "${GREEN}[$(date +'%Y-%m-%d %H:%M:%S')] ✓ $1${NC}" | tee -a $LOG_FILE
-}
-
-log_error() {
-    echo -e "${RED}[$(date +'%Y-%m-%d %H:%M:%S')] ✗ $1${NC}" | tee -a $LOG_FILE
-}
-
-error_exit() {
-    log_error "$1"
-    exit 1
-}
-
-log "=========================================="
-log "JobTracker S3 + CloudFront Deployment"
-log "=========================================="
-
-log "Step 1: Checking AWS CLI"
-if ! command -v aws &> /dev/null; then
-    error_exit "AWS CLI not installed"
-fi
-log_success "AWS CLI found"
-
-log "Step 2: Validating frontend directory"
-if [ ! -d "$FRONTEND_DIR" ]; then
-    error_exit "Frontend directory not found: $FRONTEND_DIR"
-fi
-log_success "Frontend directory found"
-
-log "Step 3: Getting S3 bucket name"
 AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 S3_BUCKET="${PROJECT_NAME}-frontend-${ENVIRONMENT}-${AWS_ACCOUNT_ID}"
 
-if ! aws s3 ls "s3://${S3_BUCKET}" 2>/dev/null; then
-    error_exit "S3 bucket not found: $S3_BUCKET"
-fi
-log_success "S3 bucket found: $S3_BUCKET"
+aws s3 ls "s3://${S3_BUCKET}" >/dev/null || { echo "Bucket not found: $S3_BUCKET"; exit 1; }
 
-log "Step 4: Uploading files to S3"
-aws s3 sync "$FRONTEND_DIR" "s3://${S3_BUCKET}" \
-    --region $AWS_REGION \
-    --delete \
-    --cache-control "max-age=3600"
-log_success "Files uploaded to S3"
+log "Syncing frontend to s3://${S3_BUCKET}"
+aws s3 sync "$FRONTEND_DIR" "s3://${S3_BUCKET}" --region "$AWS_REGION" --delete --cache-control "max-age=3600"
 
-log "Step 5: Getting CloudFront distribution ID"
-CLOUDFRONT_ID=$(aws cloudfront list-distributions \
-    --query 'Distributions[0].Id' \
+log "Finding CloudFront distribution to invalidate"
+if [ -n "$CF_ALIAS_MATCH" ]; then
+  CLOUDFRONT_ID=$(aws cloudfront list-distributions \
+    --query "DistributionList.Items[?Aliases.Items[?contains(@, \`${CF_ALIAS_MATCH}\`)]].Id | [0]" \
     --output text)
-
-if [ -z "$CLOUDFRONT_ID" ] || [ "$CLOUDFRONT_ID" == "None" ]; then
-    log_success "No CloudFront distribution found, skipping invalidation"
 else
-    log_success "CloudFront distribution found: $CLOUDFRONT_ID"
-    
-    log "Step 6: Invalidating CloudFront cache"
-    INVALIDATION_ID=$(aws cloudfront create-invalidation \
-        --distribution-id "$CLOUDFRONT_ID" \
-        --paths "/*" \
-        --query 'Invalidation.Id' \
-        --output text)
-    log_success "CloudFront cache invalidated: $INVALIDATION_ID"
+  CLOUDFRONT_ID=$(aws cloudfront list-distributions \
+    --query "DistributionList.Items[?Comment=='${PROJECT_NAME}-${ENVIRONMENT}'].Id | [0]" \
+    --output text)
 fi
 
-log "=========================================="
-log_success "Frontend Deployment Complete!"
-log "=========================================="
+if [ -n "$CLOUDFRONT_ID" ] && [ "$CLOUDFRONT_ID" != "None" ]; then
+  log "Invalidating CloudFront ${CLOUDFRONT_ID}"
+  aws cloudfront create-invalidation --distribution-id "$CLOUDFRONT_ID" --paths "/*" >/dev/null
+else
+  log "No matching CloudFront distribution found; skipping invalidation"
+fi
+
+log "Frontend deployment complete"

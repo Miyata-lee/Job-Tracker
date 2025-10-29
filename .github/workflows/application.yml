@@ -7,6 +7,8 @@ env:
   AWS_REGION: us-east-1
   PROJECT_NAME: jobtracker
   ENVIRONMENT: dev
+  ASG_NAME: jobtracker-asg-dev
+  DB_NAME: jobtracker   
 
 permissions:
   id-token: write
@@ -15,7 +17,6 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -26,107 +27,77 @@ jobs:
           role-to-assume: arn:aws:iam::107411014674:role/github-jobtracker-role
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Get EC2 Instance IPs
+      - name: Get EC2 public IPs in ASG
+        id: ec2
         run: |
-          ASG_NAME="jobtracker-asg-dev"
-          
           INSTANCE_IDS=$(aws autoscaling describe-auto-scaling-groups \
-            --auto-scaling-group-names "$ASG_NAME" \
-            --query 'AutoScalingGroups[0].Instances[].InstanceId' \
+            --auto-scaling-group-names "${ASG_NAME}" \
+            --query 'AutoScalingGroups[0].Instances[?LifecycleState==`InService` && HealthStatus==`Healthy`].InstanceId' \
             --output text)
-          
           if [ -z "$INSTANCE_IDS" ]; then
-            echo "✗ No instances found in ASG"
+            echo "No InService instances in ASG"
             exit 1
           fi
-          
-          EC2_IPS=$(aws ec2 describe-instances \
-            --instance-ids $INSTANCE_IDS \
-            --query 'Reservations[].Instances[].PublicIpAddress' \
-            --output text)
-          
+          EC2_IPS=$(aws ec2 describe-instances --instance-ids $INSTANCE_IDS \
+            --query 'Reservations[].Instances[?PublicIpAddress!=null].PublicIpAddress' --output text)
+          if [ -z "$EC2_IPS" ]; then
+            echo "Instances have no public IPs; consider SSM-based deployment"
+            exit 1
+          fi
           echo "$EC2_IPS" > /tmp/ec2_ips.txt
 
-      - name: Wait for SSH to be Ready
+      - name: Wait for SSH
         run: |
           EC2_IPS=$(cat /tmp/ec2_ips.txt)
-          
           for ip in $EC2_IPS; do
-            echo "Waiting for SSH on $ip..."
+            echo "Scanning $ip..."
             for i in {1..60}; do
-              if ssh-keyscan -H $ip >> /tmp/known_hosts 2>/dev/null; then
-                echo "✓ SSH ready on $ip"
-                break
-              fi
-              if [ $i -eq 60 ]; then
-                echo "✗ SSH timeout on $ip"
-                exit 1
-              fi
+              ssh-keyscan -H $ip >> ~/.ssh/known_hosts 2>/dev/null && break
+              [ $i -eq 60 ] && { echo "SSH not ready on $ip"; exit 1; }
               sleep 2
             done
           done
 
-      - name: Deploy RDS + EC2
+      - name: Deploy RDS and EC2
         env:
           DB_HOST: jobtracker-mysql-dev.c8xakusqg6xa.us-east-1.rds.amazonaws.com
-          DB_NAME: jobtracker_dev
           DB_USER: ${{ secrets.DB_USER }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_NAME: ${{ env.DB_NAME }}
           SECRET_KEY: ${{ secrets.SECRET_KEY }}
+          CORS_ORIGINS: ${{ secrets.CORS_ORIGINS }}
         run: |
           EC2_IPS=$(cat /tmp/ec2_ips.txt)
-          
           mkdir -p ~/.ssh
           echo "${{ secrets.EC2_PRIVATE_KEY }}" > ~/.ssh/key.pem
           chmod 600 ~/.ssh/key.pem
-          
           for ip in $EC2_IPS; do
-            echo "Deploying to $ip..."
-            
-            # Deploy RDS
+            echo "Copying scripts to $ip"
+            scp -i ~/.ssh/key.pem -o StrictHostKeyChecking=no scripts/deploy-rds.sh scripts/deploy-ec2.sh ec2-user@$ip:/home/ec2-user/
+            echo "RDS init on $ip"
             ssh -i ~/.ssh/key.pem -o StrictHostKeyChecking=no ec2-user@$ip \
-              "export DB_HOST=$DB_HOST && \
-               export DB_USER=$DB_USER && \
-               export DB_PASSWORD=$DB_PASSWORD && \
-               export DB_NAME=$DB_NAME && \
-               curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/${{ github.ref_name }}/scripts/deploy-rds.sh | bash"
-            
-            # Deploy EC2
+              "export DB_HOST='$DB_HOST' DB_USER='$DB_USER' DB_PASSWORD='$DB_PASSWORD' DB_NAME='$DB_NAME'; bash ~/deploy-rds.sh"
+            echo "EC2 app deploy on $ip"
             ssh -i ~/.ssh/key.pem -o StrictHostKeyChecking=no ec2-user@$ip \
-              "export DB_HOST=$DB_HOST && \
-               export DB_USER=$DB_USER && \
-               export DB_PASSWORD=$DB_PASSWORD && \
-               export DB_NAME=$DB_NAME && \
-               export SECRET_KEY=$SECRET_KEY && \
-               curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/${{ github.ref_name }}/scripts/deploy-ec2.sh | bash"
+              "export DB_HOST='$DB_HOST' DB_USER='$DB_USER' DB_PASSWORD='$DB_PASSWORD' DB_NAME='$DB_NAME' SECRET_KEY='$SECRET_KEY' CORS_ORIGINS='${CORS_ORIGINS}'; bash ~/deploy-ec2.sh"
           done
 
       - name: Deploy Frontend to S3
         env:
           PROJECT_NAME: ${{ env.PROJECT_NAME }}
           ENVIRONMENT: ${{ env.ENVIRONMENT }}
+          AWS_REGION: ${{ env.AWS_REGION }}
+          CF_ALIAS_MATCH: ${{ secrets.CF_ALIAS_MATCH }}
         run: bash scripts/deploy-frontend.sh
 
-      - name: Health Check
+      - name: Health Check (HTTP /health)
         run: |
           EC2_IPS=$(cat /tmp/ec2_ips.txt)
-          
           for ip in $EC2_IPS; do
-            echo "Health checking $ip:5000..."
+            echo "Checking http://$ip:5000/health"
             for i in {1..30}; do
-              if curl -f http://$ip:5000/health 2>/dev/null; then
-                echo "✓ $ip is healthy"
-                break
-              fi
-              if [ $i -eq 30 ]; then
-                echo "✗ Health check failed on $ip"
-                exit 1
-              fi
+              curl -fsS "http://$ip:5000/health" && break
+              [ $i -eq 30 ] && { echo "Health check failed on $ip"; exit 1; }
               sleep 2
             done
           done
-
-      - name: Deployment Complete
-        run: |
-          echo "✓ Application deployment completed!"
-          echo "Timestamp: $(date)"
