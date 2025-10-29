@@ -53,11 +53,10 @@ jobs:
         working-directory: environment/${{ env.ENVIRONMENT }}
         run: terraform apply -auto-approve tfplan
 
-
       - name: Trigger Application Deployment
-        if: success()
         uses: benc-uk/workflow-dispatch@v1
         with:
-          workflow: Deploy Application
-          ref: ${{ github.ref }}
+          workflow: Deploy Application            # must equal the 'name:' value
+          ref: refs/heads/main                    # ensure file exists on main
           token: ${{ secrets.GITHUB_TOKEN }}
+
