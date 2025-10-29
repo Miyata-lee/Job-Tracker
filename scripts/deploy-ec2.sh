@@ -1,5 +1,5 @@
 #!/bin/bash
-# JobTracker EC2 Flask App Deployment (AL2023-safe)
+# JobTracker EC2 Flask App Deployment (Amazon Linux 2023)
 
 set -euo pipefail
 
@@ -12,7 +12,7 @@ SERVICE_NAME="jobtracker"
 
 log(){ echo "[$(date +'%F %T')] $*"; }
 
-# 1) Stop existing service if present
+# 1) Stop existing service (if any)
 if sudo systemctl list-unit-files | grep -q "^${SERVICE_NAME}.service"; then
   sudo systemctl stop "$SERVICE_NAME" || true
 fi
@@ -25,10 +25,9 @@ else
   sudo yum -y update
   sudo yum -y install python3 git
 fi
-
 PY_BIN=$(command -v python3.11 || command -v python3)
 
-# 3) Clone or update app
+# 3) Clone or update repo
 if [ -d "$APP_DIR/.git" ]; then
   git -C "$APP_DIR" fetch origin
   git -C "$APP_DIR" checkout "$BRANCH"
@@ -44,7 +43,7 @@ pip install --upgrade pip
 pip install -r "$APP_DIR/application/requirements.txt"
 pip install gunicorn mysql-connector-python flask-cors
 
-# 5) Write .env for Flask
+# 5) App env
 install -m 600 /dev/null "$APP_DIR/application/.env"
 cat > "$APP_DIR/application/.env" <<EOF
 DB_HOST=${DB_HOST}
@@ -53,10 +52,10 @@ DB_PASSWORD=${DB_PASSWORD}
 DB_NAME=${DB_NAME}
 SECRET_KEY=${SECRET_KEY}
 CORS_ORIGINS=${CORS_ORIGINS:-*}
-FLASK_ENV=production
+# FLASK_ENV is deprecated in Flask 2.3+, not used by Gunicorn service
 EOF
 
-# 6) Create systemd unit
+# 6) systemd unit
 sudo tee /etc/systemd/system/${SERVICE_NAME}.service >/dev/null <<EOF
 [Unit]
 Description=JobTracker Flask via Gunicorn
@@ -78,14 +77,14 @@ StandardError=journal
 WantedBy=multi-user.target
 EOF
 
-# 7) Enable + start
+# 7) Start
 sudo systemctl daemon-reload
 sudo systemctl enable --now "$SERVICE_NAME"
 
 # 8) Local health
 sleep 2
-curl -fsS --connect-timeout 2 --max-time 3 "http://127.0.0.1:${APP_PORT}/health" >/dev/null || {
+if ! curl -fsS --connect-timeout 2 --max-time 3 "http://127.0.0.1:${APP_PORT}/health" >/dev/null; then
   sudo journalctl -u "$SERVICE_NAME" -n 200 --no-pager || true
   exit 1
-}
-log "EC2 app deployed and healthy on ${APP_PORT}"
+fi
+log "EC2 app healthy on ${APP_PORT}"

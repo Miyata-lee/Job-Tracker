@@ -1,5 +1,5 @@
 #!/bin/bash
-# JobTracker RDS MySQL Setup
+# JobTracker RDS MySQL Schema Initialization
 
 set -euo pipefail
 
@@ -49,4 +49,4 @@ CREATE TABLE IF NOT EXISTS jobs (
 );
 EOF
 
-log "RDS schema ready"
+log "RDS schema ready in ${DB_NAME}"
