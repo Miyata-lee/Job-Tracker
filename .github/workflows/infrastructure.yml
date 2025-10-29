@@ -57,7 +57,8 @@ jobs:
         if: success()
         uses: benc-uk/workflow-dispatch@v1
         with:
-            workflow: Deploy Application  # reference by file path
-            ref: refs/heads/main                          # make sure the file exists on main
-            token: ${{ secrets.GITHUB_TOKEN }}
+          workflow: Deploy Application
+          ref: ${{ github.ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
 
