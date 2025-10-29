@@ -96,7 +96,8 @@ jobs:
           ENVIRONMENT: ${{ env.ENVIRONMENT }}
           AWS_REGION: ${{ env.AWS_REGION }}
           CF_ALIAS_MATCH: ${{ secrets.CF_ALIAS_MATCH }}
-        run: bash scripts/deploy-frontend.sh
+        run: FRONTEND_DIR=application/frontend-app/templates bash scripts/deploy-frontend.sh
+
 
       - name: Health Check (HTTP /health)
         run: |
