@@ -38,6 +38,10 @@ jobs:
         working-directory: environment/${{ env.ENVIRONMENT }}
         run: terraform init -upgrade
 
+      - name: Import existing Target Group
+        working-directory: environment/${{ env.ENVIRONMENT }}
+        run: terraform import module.compute.aws_lb_target_group.app jobtracker-tg-dev
+
       - name: Terraform Plan
         env:
           TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
@@ -45,9 +49,7 @@ jobs:
         working-directory: environment/${{ env.ENVIRONMENT }}
         run: terraform plan -out=tfplan
         
-      - name: Import existing Target Group
-        working-directory: environment/${{ env.ENVIRONMENT }}
-        run: terraform import module.compute.aws_lb_target_group.app jobtracker-tg-dev
+      
 
       - name: Terraform Apply
         if: github.ref_name == 'main'
