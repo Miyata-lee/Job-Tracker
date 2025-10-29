@@ -46,17 +46,25 @@ jobs:
           fi
           echo "$EC2_IPS" > /tmp/ec2_ips.txt
 
-      - name: Wait for SSH
+      - name: Setup SSH
         run: |
+          # Create SSH directory and configure permissions
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          echo "${{ secrets.EC2_PRIVATE_KEY }}" > ~/.ssh/key.pem
+          chmod 600 ~/.ssh/key.pem
+          touch ~/.ssh/known_hosts
           EC2_IPS=$(cat /tmp/ec2_ips.txt)
           for ip in $EC2_IPS; do
-            echo "Scanning $ip..."
+            echo "Waiting for SSH on $ip..."
             for i in {1..60}; do
               ssh-keyscan -H $ip >> ~/.ssh/known_hosts 2>/dev/null && break
-              [ $i -eq 60 ] && { echo "SSH not ready on $ip"; exit 1; }
+              [ $i -eq 60 ] && { echo "❌ SSH not ready on $ip"; exit 1; }
               sleep 2
             done
+            echo "✅ SSH ready on $ip"
           done
+
 
       - name: Deploy RDS and EC2
         env:
