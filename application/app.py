@@ -25,6 +25,19 @@ def get_db_connection():
         print(f"Database connection error: {e}")
         return None
 
+# ---------- Health Check ----------
+@app.route('/health')
+def health():
+    conn = None
+    try:
+        conn = get_db_connection()
+        ok = conn is not None and conn.is_connected()
+        status = {'app': 'ok', 'db': 'ok' if ok else 'fail'}
+        return jsonify(status), 200 if ok else 500
+    finally:
+        if conn:
+            conn.close()
+
 # ---------- Auth ----------
 @app.route('/')
 def index():
