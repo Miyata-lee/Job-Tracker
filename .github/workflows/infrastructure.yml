@@ -56,7 +56,7 @@ jobs:
       - name: Trigger Application Deployment
         if: success()
         uses: benc-uk/workflow-dispatch@v1
-        with: Deploy Application
-        workflow: 
-        ref: main
-        token: ${{ secrets.GITHUB_TOKEN }}
+        with: 
+          workflow: Deploy Application
+          ref: main
+          token: ${{ secrets.GITHUB_TOKEN }}
