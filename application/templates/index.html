@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>JobTracker • Auth</title>
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Ensure hidden utility exists even if CSS changes -->
+  <style>.hidden{display:none !important}</style>
+</head>
+<body class="dark-body">
+  <!-- Blurred background image (expects /static/bg.jpg) -->
+  <div class="bg-blur"></div>
+
+  <!-- Header -->
+  <header class="dark-header">
+    <div class="container flex-between">
+      <span class="brand-dark"><i class="fas fa-briefcase"></i> JobTracker</span>
+      <nav style="display:flex; gap:12px">
+        <a class="mini-link" href="/auth?view=login">Login</a>
+        <a class="mini-link" href="/auth?view=signup">Sign Up</a>
+        <a class="mini-link" href="/dashboard">Dashboard</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Auth Card -->
+  <main class="auth-wrap">
+    <div class="auth-card-dark">
+      <!-- Tabs -->
+      <div class="tabs" style="margin-bottom:.6rem">
+        <button id="tabLogin"  class="pill active" type="button">Login</button>
+        <button id="tabSignup" class="pill"         type="button">Sign Up</button>
+      </div>
+
+      <!-- Login -->
+      <section id="loginPane">
+        <h1 class="title-dark">Welcome back</h1>
+        <p class="subtitle-dark">Sign in to track your job applications</p>
+
+        <div id="loginError" class="alert err" role="alert"></div>
+        <div id="loginOk"    class="alert ok"  role="status"></div>
+
+        <form id="loginForm" class="form-col" autocomplete="on">
+          <label class="fg">
+            <span>Username</span>
+            <input id="login_username" class="input-dark" type="text" name="username" autocomplete="username" required placeholder="Enter your username"/>
+          </label>
+          <label class="fg">
+            <span>Password</span>
+            <input id="login_password" class="input-dark" type="password" name="current-password" autocomplete="current-password" required placeholder="Enter your password"/>
+          </label>
+          <button class="btn-primary-dark full" type="submit">
+            <i class="fas fa-arrow-right-to-bracket"></i> Login
+          </button>
+        </form>
+
+        <p class="alt-dark" style="margin-top:.6rem">
+          Don’t have an account? <a id="toSignup" class="link">Create one</a>
+        </p>
+      </section>
+
+      <!-- Signup -->
+      <section id="signupPane" class="hidden">
+        <h1 class="title-dark">Create account</h1>
+        <p class="subtitle-dark">Join JobTracker today</p>
+
+        <div id="signupError" class="alert err" role="alert"></div>
+        <div id="signupOk"    class="alert ok"  role="status"></div>
+
+        <form id="signupForm" class="form-col" autocomplete="on">
+          <label class="fg">
+            <span>Username</span>
+            <input id="signup_username" class="input-dark" type="text" name="new-username" autocomplete="username" required placeholder="Choose a username"/>
+          </label>
+          <label class="fg">
+            <span>Email</span>
+            <input id="signup_email" class="input-dark" type="email" name="email" autocomplete="email" required placeholder="Enter your email"/>
+          </label>
+          <label class="fg">
+            <span>Password</span>
+            <input id="signup_password" class="input-dark" type="password" name="new-password" autocomplete="new-password" required placeholder="Min 6 characters"/>
+          </label>
+          <label class="fg">
+            <span>Confirm Password</span>
+            <input id="signup_confirm" class="input-dark" type="password" name="confirm-password" autocomplete="new-password" required placeholder="Confirm password"/>
+          </label>
+          <button class="btn-primary-dark full" type="submit">
+            <i class="fas fa-user-plus"></i> Sign Up
+          </button>
+        </form>
+
+        <p class="alt-dark" style="margin-top:.6rem">
+          Already have an account? <a id="toLogin" class="link">Login</a>
+        </p>
+      </section>
+    </div>
+  </main>
+
+  <!-- Scripts -->
+  <script src="{{ url_for('static', filename='script.js') }}" defer></script>
+</body>
+</html>

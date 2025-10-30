@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>JobTracker • Dashboard</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="dark-body">
+  <div class="bg-blur"></div>
+
+  <header class="dark-header">
+    <div class="container flex-between">
+      <span class="brand-dark"><i class="fas fa-briefcase"></i> JobTracker</span>
+      <div class="header-actions">
+        <span class="user-label-dark">Welcome, <b>{{ username }}</b></span>
+        <button id="logoutBtn" class="btn-stroke-dark"><i class="fas fa-sign-out-alt"></i> Logout</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- Stats with icons -->
+    <section class="dash-stats-dark">
+      <div class="stat-dark">
+        <div class="stat-label-dark"><i class="fas fa-paper-plane"></i> Applied</div>
+        <div id="sApplied" class="stat-value-dark">0</div>
+      </div>
+      <div class="stat-dark">
+        <div class="stat-label-dark"><i class="fas fa-comments"></i> Interview</div>
+        <div id="sInterview" class="stat-value-dark">0</div>
+      </div>
+      <div class="stat-dark">
+        <div class="stat-label-dark"><i class="fas fa-handshake"></i> Offer</div>
+        <div id="sOffer" class="stat-value-dark">0</div>
+      </div>
+      <div class="stat-dark">
+        <div class="stat-label-dark"><i class="fas fa-xmark"></i> Rejected</div>
+        <div id="sRejected" class="stat-value-dark">0</div>
+      </div>
+    </section>
+
+    <div class="searchbar-dark">
+      <i class="fas fa-magnifying-glass" aria-hidden="true"></i>
+      <input id="searchInput" placeholder="Search company or role..." />
+    </div>
+
+    <div class="filters">
+      <button class="chip-dark active" onclick="filterByStatus('all', event)"><i class="fas fa-layer-group"></i> All</button>
+      <button class="chip-dark" onclick="filterByStatus('Applied', event)"><i class="fas fa-paper-plane"></i> Applied</button>
+      <button class="chip-dark" onclick="filterByStatus('Interview', event)"><i class="fas fa-comments"></i> Interview</button>
+      <button class="chip-dark" onclick="filterByStatus('Offer', event)"><i class="fas fa-handshake"></i> Offer</button>
+      <button class="chip-dark" onclick="filterByStatus('Rejected', event)"><i class="fas fa-xmark"></i> Rejected</button>
+    </div>
+
+    <button class="btn-primary-dark" onclick="openAddModal()"><i class="fas fa-plus"></i> Add New Job</button>
+
+    <section id="jobsList">
+      <div class="empty-dark">
+        <p><i class="fas fa-inbox"></i> No applications yet. Add your first job application.</p>
+      </div>
+    </section>
+  </main>
+
+  <!-- Add Modal -->
+  <div id="modalBackdrop" class="modal-backdrop-dark"></div>
+  <div id="addJobModal" class="modal-dark" aria-hidden="true" role="dialog" aria-labelledby="addTitle">
+    <div class="modal-card-dark">
+      <div class="modal-head">
+        <h2 id="addTitle" class="modal-title-dark"><i class="fas fa-plus-circle"></i> Add Application</h2>
+        <button class="x-dark" onclick="closeAddModal()"><i class="fas fa-xmark"></i></button>
+      </div>
+      <form id="addJobForm" class="form-col">
+        <div class="grid-2">
+          <label class="fg"><span>Company Name</span><input id="company_name" class="input-dark" required></label>
+          <label class="fg"><span>Position</span><input id="position" class="input-dark" required></label>
+        </div>
+        <div class="grid-2">
+          <label class="fg"><span>Status</span>
+            <select id="status" class="input-dark" required>
+              <option>Applied</option><option>Interview</option><option>Offer</option><option>Rejected</option>
+            </select>
+          </label>
+          <label class="fg"><span>Date Applied</span><input type="date" id="date_applied" class="input-dark" required></label>
+        </div>
+        <label class="fg"><span>Notes</span><textarea id="notes" class="input-dark" rows="3" placeholder="Any additional notes..."></textarea></label>
+        <div class="modal-actions">
+          <button type="button" class="btn-stroke-dark"><i class="fas fa-ban"></i> Cancel</button>
+          <button type="submit" class="btn-primary-dark"><i class="fas fa-plus"></i> Add</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Edit Modal -->
+  <div id="editModalBackdrop" class="modal-backdrop-dark"></div>
+  <div id="editJobModal" class="modal-dark" aria-hidden="true" role="dialog" aria-labelledby="editTitle">
+    <div class="modal-card-dark">
+      <div class="modal-head">
+        <h2 id="editTitle" class="modal-title-dark"><i class="fas fa-pen"></i> Edit Application</h2>
+        <button class="x-dark" onclick="closeEditModal()"><i class="fas fa-xmark"></i></button>
+      </div>
+      <form id="editJobForm" class="form-col">
+        <input type="hidden" id="edit_id">
+        <div class="grid-2">
+          <label class="fg"><span>Company Name</span><input id="edit_company_name" class="input-dark" required></label>
+          <label class="fg"><span>Position</span><input id="edit_position" class="input-dark" required></label>
+        </div>
+        <div class="grid-2">
+          <label class="fg"><span>Status</span>
+            <select id="edit_status" class="input-dark" required>
+              <option>Applied</option><option>Interview</option><option>Offer</option><option>Rejected</option>
+            </select>
+          </label>
+          <label class="fg"><span>Date Applied</span><input type="date" id="edit_date_applied" class="input-dark" required></label>
+        </div>
+        <label class="fg"><span>Notes</span><textarea id="edit_notes" class="input-dark" rows="3" placeholder="Any additional notes..."></textarea></label>
+        <div class="modal-actions">
+          <button type="button" class="btn-stroke-dark"><i class="fas fa-ban"></i> Cancel</button>
+          <button type="submit" class="btn-primary-dark"><i class="fas fa-floppy-disk"></i> Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="{{ url_for('static', filename='script.js') }}" defer></script>
+</body>
+</html>
