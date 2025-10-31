@@ -1,4 +1,4 @@
-                                      🧭 JobTracker – Cloud-Native Job Application Management System
+🧭 JobTracker – Cloud-Native Job Application Management System
 
 A fully automated Job Application Management System built with a cloud-native approach.
 This project showcases modern DevOps practices using Terraform, AWS, CI/CD, and Flask —
@@ -11,23 +11,28 @@ The system automates both infrastructure provisioning and application deployment
 ensuring reliability and minimal manual intervention.
 
 🏗️ Architecture
+<img width="997" height="547" alt="Architecture" src="https://github.com/user-attachments/assets/0b0f1dfb-8d41-427d-8afb-4d4845cad4e7" />
+<img width="1270" height="714" alt="Job-Tracker drawio" src="https://github.com/user-attachments/assets/4534bf92-0d1b-415f-b028-945ca1ddaee9" />
+
+
+
 
 The architecture follows a modular design:
-Frontend: HTML, CSS, JS served via S3 + CloudFront
-Backend: Flask application hosted on AWS EC2
-Database: Amazon RDS (PostgreSQL)
-Storage: S3 for static assets
-Networking: VPC with public/private subnets, security groups, and NAT gateway
-Automation: Terraform for IaC and GitHub Actions for CI/CD
+- Frontend   :HTML, CSS, JS served via S3 + CloudFront
+- Backend    :Flask application hosted on AWS EC2
+- Database   :Amazon RDS (PostgreSQL)
+- Storage    :S3 for static assets
+- Networking :VPC with public/private subnets, security groups, and NAT gateway
+- Automation :Terraform for IaC and GitHub Actions for CI/CD
 
 ✨ Highlights
 
-VPC with public/private subnets across two Availability Zones.
-Application Load Balancer routing traffic to EC2 instances on port 5000.
-Auto Scaling Group for high availability and fault tolerance.
-RDS MySQL in private subnets for secure database hosting.
-S3 + CloudFront for static asset delivery and caching.
-GitHub Actions CI/CD pipeline with OIDC (no long-lived AWS keys).
+- VPC with public/private subnets across two Availability Zones.
+- Application Load Balancer routing traffic to EC2 instances on port 5000.
+- Auto Scaling Group for high availability and fault tolerance.
+- RDS MySQL in private subnets for secure database hosting.
+- S3 + CloudFront for static asset delivery and caching.
+- GitHub Actions CI/CD pipeline with OIDC (no long-lived AWS keys).
 
 ⚙️ Tech Stack
 
