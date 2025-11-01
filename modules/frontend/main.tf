@@ -1,6 +1,10 @@
 data "aws_caller_identity" "current" {}
 
-# S3 Bucket for frontend (static + templates)
+# =======================
+# S3 Buckets
+# =======================
+
+# Frontend bucket
 resource "aws_s3_bucket" "frontend" {
   bucket = "${var.project_name}-frontend-${var.environment}-${data.aws_caller_identity.current.account_id}"
 
@@ -28,7 +32,7 @@ resource "aws_s3_bucket_versioning" "frontend" {
   }
 }
 
-# Logs bucket (for CloudFront/ALB)
+# Logs bucket
 resource "aws_s3_bucket" "logs" {
   bucket = "${var.project_name}-logs-${var.environment}-${data.aws_caller_identity.current.account_id}"
 
@@ -91,12 +95,15 @@ resource "aws_s3_bucket_acl" "logs" {
   acl    = "log-delivery-write"
 }
 
-# CloudFront Origin Access Identity (OAI)
+# =======================
+# CloudFront
+# =======================
+
 resource "aws_cloudfront_origin_access_identity" "oai" {
   comment = "OAI for ${var.project_name}-${var.environment}"
 }
 
-# Frontend bucket policy for CloudFront access
+# Frontend bucket policy
 resource "aws_s3_bucket_policy" "frontend" {
   bucket = aws_s3_bucket.frontend.id
 
@@ -116,7 +123,10 @@ resource "aws_s3_bucket_policy" "frontend" {
   })
 }
 
+# =======================
 # CloudFront Distribution
+# =======================
+
 resource "aws_cloudfront_distribution" "frontend" {
   origin {
     domain_name = aws_s3_bucket.frontend.bucket_regional_domain_name
@@ -143,7 +153,7 @@ resource "aws_cloudfront_distribution" "frontend" {
   is_ipv6_enabled     = true
   default_root_object = "templates/index.html"
 
-  # Static assets (CSS, JS, images)
+  # Static assets (CSS, JS)
   ordered_cache_behavior {
     path_pattern     = "/static/*"
     allowed_methods  = ["GET", "HEAD", "OPTIONS"]
@@ -161,7 +171,7 @@ resource "aws_cloudfront_distribution" "frontend" {
     compress               = true
   }
 
-  # API calls
+  # API calls -> ALB
   ordered_cache_behavior {
     path_pattern     = "/api/*"
     allowed_methods  = ["GET", "HEAD", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"]
@@ -182,15 +192,15 @@ resource "aws_cloudfront_distribution" "frontend" {
     compress               = true
   }
 
-  # Auth routes
+  # Auth
   ordered_cache_behavior {
-    path_pattern     = "/auth"
+    path_pattern     = "/auth*"
     allowed_methods  = ["GET", "HEAD", "OPTIONS"]
     cached_methods   = ["GET", "HEAD"]
     target_origin_id = "ALBBackend"
 
     forwarded_values {
-      query_string = false
+      query_string = true
       cookies {
         forward = "all"
       }
@@ -200,15 +210,15 @@ resource "aws_cloudfront_distribution" "frontend" {
     compress               = true
   }
 
-  # Dashboard route
+  # Dashboard
   ordered_cache_behavior {
-    path_pattern     = "/dashboard"
+    path_pattern     = "/dashboard*"
     allowed_methods  = ["GET", "HEAD", "OPTIONS"]
     cached_methods   = ["GET", "HEAD"]
     target_origin_id = "ALBBackend"
 
     forwarded_values {
-      query_string = false
+      query_string = true
       cookies {
         forward = "all"
       }
@@ -218,25 +228,7 @@ resource "aws_cloudfront_distribution" "frontend" {
     compress               = true
   }
 
-  # Root route
-  ordered_cache_behavior {
-    path_pattern     = "/"
-    allowed_methods  = ["GET", "HEAD", "OPTIONS"]
-    cached_methods   = ["GET", "HEAD"]
-    target_origin_id = "ALBBackend"
-
-    forwarded_values {
-      query_string = false
-      cookies {
-        forward = "all"
-      }
-    }
-
-    viewer_protocol_policy = "https-only"
-    compress               = true
-  }
-
-  # Default behavior for S3
+  # Default (S3)
   default_cache_behavior {
     allowed_methods  = ["GET", "HEAD", "OPTIONS"]
     cached_methods   = ["GET", "HEAD"]
