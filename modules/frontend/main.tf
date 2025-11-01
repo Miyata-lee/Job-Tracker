@@ -14,7 +14,7 @@ resource "aws_s3_bucket_public_access_block" "frontend" {
   bucket = aws_s3_bucket.frontend.id
 
   block_public_acls       = true
-  block_public_policy     = false
+  block_public_policy     = true
   ignore_public_acls      = true
   restrict_public_buckets = true
 }
@@ -143,7 +143,7 @@ resource "aws_cloudfront_distribution" "frontend" {
 
   enabled             = true
   is_ipv6_enabled     = true
-  default_root_object = "index.html"
+  default_root_object = "templates/index.html"
 
   # Default behavior: S3 (static files - JS, CSS, images, etc)
   default_cache_behavior {
@@ -180,7 +180,7 @@ resource "aws_cloudfront_distribution" "frontend" {
       }
     }
 
-    viewer_protocol_policy = "allow-all"
+    viewer_protocol_policy = "https-only"
     min_ttl                = 0
     default_ttl            = 0
     max_ttl                = 0
@@ -201,7 +201,7 @@ resource "aws_cloudfront_distribution" "frontend" {
       }
     }
 
-    viewer_protocol_policy = "allow-all"
+    viewer_protocol_policy = "https-only"
     min_ttl                = 0
     default_ttl            = 0
     max_ttl                = 0
@@ -222,7 +222,7 @@ resource "aws_cloudfront_distribution" "frontend" {
       }
     }
 
-    viewer_protocol_policy = "allow-all"
+    viewer_protocol_policy = "https-only"
     min_ttl                = 0
     default_ttl            = 0
     max_ttl                = 0
@@ -243,7 +243,7 @@ resource "aws_cloudfront_distribution" "frontend" {
       }
     }
 
-    viewer_protocol_policy = "allow-all"
+    viewer_protocol_policy = "https-only"
     min_ttl                = 0
     default_ttl            = 0
     max_ttl                = 0
