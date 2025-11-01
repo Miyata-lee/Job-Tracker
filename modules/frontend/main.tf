@@ -1,6 +1,6 @@
 data "aws_caller_identity" "current" {}
 
-# S3 Bucket for frontend (static assets)
+# S3 Bucket for frontend (static + templates)
 resource "aws_s3_bucket" "frontend" {
   bucket = "${var.project_name}-frontend-${var.environment}-${data.aws_caller_identity.current.account_id}"
 
@@ -9,7 +9,7 @@ resource "aws_s3_bucket" "frontend" {
   }
 }
 
-# Block public access to frontend bucket
+# Block public access
 resource "aws_s3_bucket_public_access_block" "frontend" {
   bucket = aws_s3_bucket.frontend.id
 
@@ -19,7 +19,7 @@ resource "aws_s3_bucket_public_access_block" "frontend" {
   restrict_public_buckets = true
 }
 
-# Enable versioning for frontend bucket
+# Enable versioning
 resource "aws_s3_bucket_versioning" "frontend" {
   bucket = aws_s3_bucket.frontend.id
 
@@ -28,7 +28,7 @@ resource "aws_s3_bucket_versioning" "frontend" {
   }
 }
 
-# S3 Bucket for logs (ALB and CloudFront logs)
+# Logs bucket (for CloudFront/ALB)
 resource "aws_s3_bucket" "logs" {
   bucket = "${var.project_name}-logs-${var.environment}-${data.aws_caller_identity.current.account_id}"
 
@@ -37,7 +37,6 @@ resource "aws_s3_bucket" "logs" {
   }
 }
 
-# Block public access to logs bucket (allow policy)
 resource "aws_s3_bucket_public_access_block" "logs" {
   bucket = aws_s3_bucket.logs.id
 
@@ -45,7 +44,6 @@ resource "aws_s3_bucket_public_access_block" "logs" {
   restrict_public_buckets = true
 }
 
-# Bucket policy for CloudFront to write logs
 resource "aws_s3_bucket_policy" "logs" {
   bucket = aws_s3_bucket.logs.id
 
@@ -53,21 +51,21 @@ resource "aws_s3_bucket_policy" "logs" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid    = "AllowCloudFrontLogs"
-        Effect = "Allow"
+        Sid      = "AllowCloudFrontLogs",
+        Effect   = "Allow",
         Principal = {
           Service = "cloudfront.amazonaws.com"
-        }
-        Action   = "s3:PutObject"
+        },
+        Action   = "s3:PutObject",
         Resource = "${aws_s3_bucket.logs.arn}/*"
       },
       {
-        Sid    = "AllowGetBucketAcl"
-        Effect = "Allow"
+        Sid      = "AllowGetBucketAcl",
+        Effect   = "Allow",
         Principal = {
           Service = "cloudfront.amazonaws.com"
-        }
-        Action   = "s3:GetBucketAcl"
+        },
+        Action   = "s3:GetBucketAcl",
         Resource = aws_s3_bucket.logs.arn
       }
     ]
@@ -76,7 +74,6 @@ resource "aws_s3_bucket_policy" "logs" {
   depends_on = [aws_s3_bucket_public_access_block.logs]
 }
 
-# Allow CloudFront to write logs (required for logging_config)
 resource "aws_s3_bucket_ownership_controls" "logs" {
   bucket = aws_s3_bucket.logs.id
 
@@ -86,9 +83,12 @@ resource "aws_s3_bucket_ownership_controls" "logs" {
 }
 
 resource "aws_s3_bucket_acl" "logs" {
-  depends_on = [aws_s3_bucket_ownership_controls.logs, aws_s3_bucket_public_access_block.logs]
-  bucket     = aws_s3_bucket.logs.id
-  acl        = "log-delivery-write"
+  depends_on = [
+    aws_s3_bucket_ownership_controls.logs,
+    aws_s3_bucket_public_access_block.logs
+  ]
+  bucket = aws_s3_bucket.logs.id
+  acl    = "log-delivery-write"
 }
 
 # CloudFront Origin Access Identity (OAI)
@@ -96,7 +96,7 @@ resource "aws_cloudfront_origin_access_identity" "oai" {
   comment = "OAI for ${var.project_name}-${var.environment}"
 }
 
-# S3 Bucket Policy for CloudFront frontend access
+# Frontend bucket policy for CloudFront access
 resource "aws_s3_bucket_policy" "frontend" {
   bucket = aws_s3_bucket.frontend.id
 
@@ -116,9 +116,8 @@ resource "aws_s3_bucket_policy" "frontend" {
   })
 }
 
-# CloudFront Distribution with dual origins (S3 + ALB)
+# CloudFront Distribution
 resource "aws_cloudfront_distribution" "frontend" {
-  # Origin 1: S3 (Frontend static files)
   origin {
     domain_name = aws_s3_bucket.frontend.bucket_regional_domain_name
     origin_id   = "S3Frontend"
@@ -128,7 +127,6 @@ resource "aws_cloudfront_distribution" "frontend" {
     }
   }
 
-  # Origin 2: ALB (Backend API + Pages)
   origin {
     domain_name = var.alb_dns_name
     origin_id   = "ALBBackend"
@@ -143,10 +141,11 @@ resource "aws_cloudfront_distribution" "frontend" {
 
   enabled             = true
   is_ipv6_enabled     = true
-  default_root_object = "templates/index.html"
+  default_root_object = "templates/index.html" # ✅ Keep this if you want to store inside templates/
 
-  # Default behavior: S3 (static files - JS, CSS, images, etc)
-  default_cache_behavior {
+  # Static assets (CSS, JS, images)
+  ordered_cache_behavior {
+    path_pattern     = "/static/*"
     allowed_methods  = ["GET", "HEAD", "OPTIONS"]
     cached_methods   = ["GET", "HEAD"]
     target_origin_id = "S3Frontend"
@@ -159,13 +158,10 @@ resource "aws_cloudfront_distribution" "frontend" {
     }
 
     viewer_protocol_policy = "redirect-to-https"
-    min_ttl                = 0
-    default_ttl            = 3600
-    max_ttl                = 86400
     compress               = true
   }
 
-  # Behavior 1: /api/* → ALB (API calls - no caching, all methods)
+  # API calls
   ordered_cache_behavior {
     path_pattern     = "/api/*"
     allowed_methods  = ["GET", "HEAD", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"]
@@ -187,7 +183,7 @@ resource "aws_cloudfront_distribution" "frontend" {
     compress               = true
   }
 
-  # Behavior 2: /auth → ALB (login/signup page)
+  # Auth routes
   ordered_cache_behavior {
     path_pattern     = "/auth"
     allowed_methods  = ["GET", "HEAD", "OPTIONS"]
@@ -202,13 +198,10 @@ resource "aws_cloudfront_distribution" "frontend" {
     }
 
     viewer_protocol_policy = "https-only"
-    min_ttl                = 0
-    default_ttl            = 0
-    max_ttl                = 0
     compress               = true
   }
 
-  # Behavior 3: /dashboard → ALB (dashboard page)
+  # Dashboard route
   ordered_cache_behavior {
     path_pattern     = "/dashboard"
     allowed_methods  = ["GET", "HEAD", "OPTIONS"]
@@ -223,13 +216,10 @@ resource "aws_cloudfront_distribution" "frontend" {
     }
 
     viewer_protocol_policy = "https-only"
-    min_ttl                = 0
-    default_ttl            = 0
-    max_ttl                = 0
     compress               = true
   }
 
-  # Behavior 4: / (root) → ALB (redirects to /auth or /dashboard)
+  # Root route
   ordered_cache_behavior {
     path_pattern     = "/"
     allowed_methods  = ["GET", "HEAD", "OPTIONS"]
@@ -244,9 +234,25 @@ resource "aws_cloudfront_distribution" "frontend" {
     }
 
     viewer_protocol_policy = "https-only"
+    compress               = true
+  }
+
+  default_cache_behavior {
+    allowed_methods  = ["GET", "HEAD", "OPTIONS"]
+    cached_methods   = ["GET", "HEAD"]
+    target_origin_id = "S3Frontend"
+
+    forwarded_values {
+      query_string = false
+      cookies {
+        forward = "none"
+      }
+    }
+
+    viewer_protocol_policy = "redirect-to-https"
     min_ttl                = 0
-    default_ttl            = 0
-    max_ttl                = 0
+    default_ttl            = 3600
+    max_ttl                = 86400
     compress               = true
   }
 
