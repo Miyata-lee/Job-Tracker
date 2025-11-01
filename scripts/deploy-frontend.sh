@@ -15,29 +15,41 @@ AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 S3_BUCKET="${PROJECT_NAME}-frontend-${ENVIRONMENT}-${AWS_ACCOUNT_ID}"
 aws s3 ls "s3://${S3_BUCKET}" >/dev/null || { echo "Bucket not found s3://${S3_BUCKET}"; exit 1; }
 
-log "Syncing application/static and application/templates -> s3://${S3_BUCKET}"
+# ============================================
+# ONLY UPLOAD STATIC FILES (NOT TEMPLATES!)
+# Templates are served by Flask from EC2
+# ============================================
 
-# Upload static files
+log "Syncing ONLY static files (CSS, JS) -> s3://${S3_BUCKET}/static"
+
+# Upload static files only
 aws s3 sync application/static "s3://${S3_BUCKET}/static" \
   --region "${AWS_REGION}" \
   --delete \
-  --cache-control "max-age=3600,s-maxage=3600"
+  --cache-control "max-age=86400,s-maxage=86400"  # Cache for 1 day
 
-# Upload templates
-aws s3 sync application/templates "s3://${S3_BUCKET}/templates" \
-  --region "${AWS_REGION}" \
-  --delete \
-  --cache-control "max-age=3600,s-maxage=3600"
+# ============================================
+# REMOVE templates from S3 (if they exist)
+# Flask serves them from EC2 now!
+# ============================================
 
-# Optional invalidation
+log "Removing templates from S3 (Flask serves them now)"
+aws s3 rm "s3://${S3_BUCKET}/templates" --recursive --region "${AWS_REGION}" 2>/dev/null || true
+
+# ============================================
+# CloudFront Invalidation (static files only)
+# ============================================
+
 if [ -n "${CF_ALIAS_MATCH}" ]; then
   CLOUDFRONT_ID=$(aws cloudfront list-distributions \
     --query "DistributionList.Items[?Aliases.Items[?contains(@, \`${CF_ALIAS_MATCH}\`)]].Id | [0]" \
     --output text)
   if [ -n "${CLOUDFRONT_ID}" ] && [ "${CLOUDFRONT_ID}" != "None" ]; then
-    log "Invalidating CloudFront ${CLOUDFRONT_ID}"
-    aws cloudfront create-invalidation --distribution-id "${CLOUDFRONT_ID}" --paths "/*" >/dev/null
+    log "Invalidating CloudFront ${CLOUDFRONT_ID} (static files only)"
+    aws cloudfront create-invalidation --distribution-id "${CLOUDFRONT_ID}" --paths "/static/*" >/dev/null
+  else
+    log "No CloudFront distribution found, skipping invalidation"
   fi
 fi
 
-log "Frontend deployment complete"
+log "Frontend deployment complete (static files only)"

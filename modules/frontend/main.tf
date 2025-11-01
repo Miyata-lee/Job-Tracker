@@ -151,9 +151,9 @@ resource "aws_cloudfront_distribution" "frontend" {
 
   enabled             = true
   is_ipv6_enabled     = true
-  default_root_object = "templates/index.html"
+  default_root_object = ""  # ← REMOVE THIS! Let Flask handle root
 
-  # Static assets (CSS, JS)
+  # Static files (CSS, JS) -> S3
   ordered_cache_behavior {
     path_pattern     = "/static/*"
     allowed_methods  = ["GET", "HEAD", "OPTIONS"]
@@ -162,7 +162,7 @@ resource "aws_cloudfront_distribution" "frontend" {
 
     forwarded_values {
       query_string = false
-      headers = []
+      headers      = []
       cookies {
         forward = "none"
       }
@@ -170,6 +170,9 @@ resource "aws_cloudfront_distribution" "frontend" {
 
     viewer_protocol_policy = "redirect-to-https"
     compress               = true
+    min_ttl                = 0
+    default_ttl            = 86400  # Cache for 1 day
+    max_ttl                = 31536000
   }
 
   # API calls -> ALB
@@ -181,75 +184,37 @@ resource "aws_cloudfront_distribution" "frontend" {
 
     forwarded_values {
       query_string = true
-       headers      = ["Host", "Authorization", "Content-Type"]
+      headers      = ["Host", "Authorization", "Cookie"]  # ← Need Cookie for sessions!
       cookies {
-        forward = "all"
+        forward = "all"  # ← Must forward cookies for Flask sessions!
       }
     }
 
     viewer_protocol_policy = "https-only"
     min_ttl                = 0
-    default_ttl            = 0
+    default_ttl            = 0  # Don't cache API responses
     max_ttl                = 0
     compress               = true
   }
 
-  # Auth
-  ordered_cache_behavior {
-    path_pattern     = "/auth*"
-    allowed_methods  = ["GET", "HEAD", "OPTIONS"]
-    cached_methods   = ["GET", "HEAD"]
-    target_origin_id = "ALBBackend"
-
-    forwarded_values {
-      query_string = true
-       headers      = ["Host", "Authorization"] 
-      cookies {
-        forward = "all"
-      }
-    }
-
-    viewer_protocol_policy = "https-only"
-    compress               = true
-  }
-
-  # Dashboard
-  ordered_cache_behavior {
-    path_pattern     = "/dashboard*"
-    allowed_methods  = ["GET", "HEAD", "OPTIONS"]
-    cached_methods   = ["GET", "HEAD"]
-    target_origin_id = "ALBBackend"
-
-    forwarded_values {
-      query_string = true
-      headers      = ["Host", "Authorization"]
-      cookies {
-        forward = "all"
-      }
-    }
-
-    viewer_protocol_policy = "https-only"
-    compress               = true
-  }
-
-  # Default (S3)
+  # Everything else (/, /auth, /dashboard, /health) -> ALB
   default_cache_behavior {
-    allowed_methods  = ["GET", "HEAD", "OPTIONS"]
+    allowed_methods  = ["GET", "HEAD", "OPTIONS", "POST", "PUT", "DELETE", "PATCH"]
     cached_methods   = ["GET", "HEAD"]
-    target_origin_id = "S3Frontend"
+    target_origin_id = "ALBBackend"  # ← Changed from S3Frontend!
 
     forwarded_values {
-      query_string = false
-      headers      = [] 
+      query_string = true
+      headers      = ["Host", "Cookie"]  # ← Need Cookie for sessions!
       cookies {
-        forward = "none"
+        forward = "all"  # ← Must forward cookies!
       }
     }
 
     viewer_protocol_policy = "redirect-to-https"
     min_ttl                = 0
-    default_ttl            = 3600
-    max_ttl                = 86400
+    default_ttl            = 0  # Don't cache HTML pages (they're dynamic!)
+    max_ttl                = 0
     compress               = true
   }
 
