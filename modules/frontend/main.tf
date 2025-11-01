@@ -184,7 +184,7 @@ resource "aws_cloudfront_distribution" "frontend" {
 
     forwarded_values {
       query_string = true
-      headers      = ["Host", "Authorization", "Cookie"]  # ← Need Cookie for sessions!
+      headers      = ["Host", "Authorization"]
       cookies {
         forward = "all"  # ← Must forward cookies for Flask sessions!
       }
@@ -205,7 +205,7 @@ resource "aws_cloudfront_distribution" "frontend" {
 
     forwarded_values {
       query_string = true
-      headers      = ["Host", "Cookie"]  # ← Need Cookie for sessions!
+      headers      = ["Host"]  # ← Need Cookie for sessions!
       cookies {
         forward = "all"  # ← Must forward cookies!
       }
