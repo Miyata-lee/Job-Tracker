@@ -141,7 +141,7 @@ resource "aws_cloudfront_distribution" "frontend" {
 
   enabled             = true
   is_ipv6_enabled     = true
-  default_root_object = "templates/index.html" # ✅ Keep this if you want to store inside templates/
+  default_root_object = "templates/index.html"
 
   # Static assets (CSS, JS, images)
   ordered_cache_behavior {
@@ -170,7 +170,6 @@ resource "aws_cloudfront_distribution" "frontend" {
 
     forwarded_values {
       query_string = true
-      headers      = ["*"]
       cookies {
         forward = "all"
       }
@@ -237,6 +236,7 @@ resource "aws_cloudfront_distribution" "frontend" {
     compress               = true
   }
 
+  # Default behavior for S3
   default_cache_behavior {
     allowed_methods  = ["GET", "HEAD", "OPTIONS"]
     cached_methods   = ["GET", "HEAD"]
