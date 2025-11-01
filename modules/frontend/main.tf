@@ -162,6 +162,7 @@ resource "aws_cloudfront_distribution" "frontend" {
 
     forwarded_values {
       query_string = false
+      headers = []
       cookies {
         forward = "none"
       }
@@ -180,6 +181,7 @@ resource "aws_cloudfront_distribution" "frontend" {
 
     forwarded_values {
       query_string = true
+       headers      = ["Host", "Authorization", "Content-Type"]
       cookies {
         forward = "all"
       }
@@ -201,6 +203,7 @@ resource "aws_cloudfront_distribution" "frontend" {
 
     forwarded_values {
       query_string = true
+       headers      = ["Host", "Authorization"] 
       cookies {
         forward = "all"
       }
@@ -219,6 +222,7 @@ resource "aws_cloudfront_distribution" "frontend" {
 
     forwarded_values {
       query_string = true
+      headers      = ["Host", "Authorization"]
       cookies {
         forward = "all"
       }
@@ -236,6 +240,7 @@ resource "aws_cloudfront_distribution" "frontend" {
 
     forwarded_values {
       query_string = false
+      headers      = [] 
       cookies {
         forward = "none"
       }
