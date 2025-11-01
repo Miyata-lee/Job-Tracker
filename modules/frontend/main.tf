@@ -1,10 +1,10 @@
 data "aws_caller_identity" "current" {}
 
-# =======================
+# ======================================================
 # S3 Buckets
-# =======================
+# ======================================================
 
-# Frontend bucket
+# ---------- Frontend Bucket ----------
 resource "aws_s3_bucket" "frontend" {
   bucket = "${var.project_name}-frontend-${var.environment}-${data.aws_caller_identity.current.account_id}"
 
@@ -16,7 +16,6 @@ resource "aws_s3_bucket" "frontend" {
 # Block public access
 resource "aws_s3_bucket_public_access_block" "frontend" {
   bucket = aws_s3_bucket.frontend.id
-
   block_public_acls       = true
   block_public_policy     = true
   ignore_public_acls      = true
@@ -32,7 +31,7 @@ resource "aws_s3_bucket_versioning" "frontend" {
   }
 }
 
-# Logs bucket
+# ---------- Logs Bucket ----------
 resource "aws_s3_bucket" "logs" {
   bucket = "${var.project_name}-logs-${var.environment}-${data.aws_caller_identity.current.account_id}"
 
@@ -43,47 +42,36 @@ resource "aws_s3_bucket" "logs" {
 
 resource "aws_s3_bucket_public_access_block" "logs" {
   bucket = aws_s3_bucket.logs.id
-
   block_public_policy     = false
   restrict_public_buckets = true
 }
 
 resource "aws_s3_bucket_policy" "logs" {
   bucket = aws_s3_bucket.logs.id
-
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
         Sid      = "AllowCloudFrontLogs",
         Effect   = "Allow",
-        Principal = {
-          Service = "cloudfront.amazonaws.com"
-        },
+        Principal = { Service = "cloudfront.amazonaws.com" },
         Action   = "s3:PutObject",
         Resource = "${aws_s3_bucket.logs.arn}/*"
       },
       {
         Sid      = "AllowGetBucketAcl",
         Effect   = "Allow",
-        Principal = {
-          Service = "cloudfront.amazonaws.com"
-        },
+        Principal = { Service = "cloudfront.amazonaws.com" },
         Action   = "s3:GetBucketAcl",
         Resource = aws_s3_bucket.logs.arn
       }
     ]
   })
-
-  depends_on = [aws_s3_bucket_public_access_block.logs]
 }
 
 resource "aws_s3_bucket_ownership_controls" "logs" {
   bucket = aws_s3_bucket.logs.id
-
-  rule {
-    object_ownership = "ObjectWriter"
-  }
+  rule { object_ownership = "ObjectWriter" }
 }
 
 resource "aws_s3_bucket_acl" "logs" {
@@ -95,18 +83,17 @@ resource "aws_s3_bucket_acl" "logs" {
   acl    = "log-delivery-write"
 }
 
-# =======================
+# ======================================================
 # CloudFront
-# =======================
+# ======================================================
 
 resource "aws_cloudfront_origin_access_identity" "oai" {
   comment = "OAI for ${var.project_name}-${var.environment}"
 }
 
-# Frontend bucket policy
+# ---------- Frontend Bucket Policy ----------
 resource "aws_s3_bucket_policy" "frontend" {
   bucket = aws_s3_bucket.frontend.id
-
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
@@ -123,11 +110,16 @@ resource "aws_s3_bucket_policy" "frontend" {
   })
 }
 
-# =======================
+# ======================================================
 # CloudFront Distribution
-# =======================
+# ======================================================
 
 resource "aws_cloudfront_distribution" "frontend" {
+  enabled         = true
+  is_ipv6_enabled = true
+  default_root_object = "index.html"  # Safer default (Flask handles routing)
+
+  # ---------- S3 Origin (Static Files) ----------
   origin {
     domain_name = aws_s3_bucket.frontend.bucket_regional_domain_name
     origin_id   = "S3Frontend"
@@ -137,6 +129,7 @@ resource "aws_cloudfront_distribution" "frontend" {
     }
   }
 
+  # ---------- ALB Origin (Flask App) ----------
   origin {
     domain_name = var.alb_dns_name
     origin_id   = "ALBBackend"
@@ -144,16 +137,14 @@ resource "aws_cloudfront_distribution" "frontend" {
     custom_origin_config {
       http_port              = 80
       https_port             = 443
-      origin_protocol_policy = "http-only"
+      origin_protocol_policy = "http-only"   # change to "https-only" if ALB uses HTTPS
       origin_ssl_protocols   = ["TLSv1.2"]
     }
   }
 
-  enabled             = true
-  is_ipv6_enabled     = true
-  default_root_object = ""  # ← REMOVE THIS! Let Flask handle root
+  # ---------- Cache Behaviors ----------
 
-  # Static files (CSS, JS) -> S3
+  # Static files (CSS, JS, images)
   ordered_cache_behavior {
     path_pattern     = "/static/*"
     allowed_methods  = ["GET", "HEAD", "OPTIONS"]
@@ -162,20 +153,17 @@ resource "aws_cloudfront_distribution" "frontend" {
 
     forwarded_values {
       query_string = false
-      headers      = []
-      cookies {
-        forward = "none"
-      }
+      cookies { forward = "none" }
     }
 
     viewer_protocol_policy = "redirect-to-https"
     compress               = true
     min_ttl                = 0
-    default_ttl            = 86400  # Cache for 1 day
-    max_ttl                = 31536000
+    default_ttl            = 86400     # 1 day
+    max_ttl                = 31536000  # 1 year
   }
 
-  # API calls -> ALB
+  # API routes → Flask via ALB
   ordered_cache_behavior {
     path_pattern     = "/api/*"
     allowed_methods  = ["GET", "HEAD", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"]
@@ -185,39 +173,36 @@ resource "aws_cloudfront_distribution" "frontend" {
     forwarded_values {
       query_string = true
       headers      = ["Host", "Authorization"]
-      cookies {
-        forward = "all"  # ← Must forward cookies for Flask sessions!
-      }
+      cookies { forward = "all" }
     }
 
     viewer_protocol_policy = "https-only"
     min_ttl                = 0
-    default_ttl            = 0  # Don't cache API responses
+    default_ttl            = 0
     max_ttl                = 0
     compress               = true
   }
 
-  # Everything else (/, /auth, /dashboard, /health) -> ALB
+  # All other routes → Flask via ALB
   default_cache_behavior {
     allowed_methods  = ["GET", "HEAD", "OPTIONS", "POST", "PUT", "DELETE", "PATCH"]
     cached_methods   = ["GET", "HEAD"]
-    target_origin_id = "ALBBackend"  # ← Changed from S3Frontend!
+    target_origin_id = "ALBBackend"
 
     forwarded_values {
       query_string = true
-      headers      = ["Host"]  # ← Need Cookie for sessions!
-      cookies {
-        forward = "all"  # ← Must forward cookies!
-      }
+      headers      = ["Host"]
+      cookies { forward = "all" }
     }
 
     viewer_protocol_policy = "redirect-to-https"
     min_ttl                = 0
-    default_ttl            = 0  # Don't cache HTML pages (they're dynamic!)
+    default_ttl            = 0
     max_ttl                = 0
     compress               = true
   }
 
+  # ---------- General Settings ----------
   price_class = "PriceClass_100"
 
   restrictions {
@@ -241,8 +226,7 @@ resource "aws_cloudfront_distribution" "frontend" {
   }
 
   depends_on = [
-    aws_s3_bucket_policy.logs,
-    aws_s3_bucket.logs,
-    aws_s3_bucket_public_access_block.logs
+    aws_s3_bucket_policy.frontend,
+    aws_s3_bucket_policy.logs
   ]
 }
