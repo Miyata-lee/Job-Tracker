@@ -19,7 +19,7 @@ ensuring reliability and minimal manual intervention.
 The architecture follows a modular design:
 - **Frontend:** HTML, CSS, JS served via S3 + CloudFront  
 - **Backend:** Flask application hosted on AWS EC2  
-- **Database:** Amazon RDS (PostgreSQL)
+- **Database:** Amazon RDS (MYSQL)
 - **Storage:** S3 for static assets  
 - **Networking:** VPC with public/private subnets, security groups, and NAT gateway  
 - **Automation:** Terraform for IaC and GitHub Actions for CI/CD  
