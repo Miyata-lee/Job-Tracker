@@ -117,9 +117,9 @@ resource "aws_s3_bucket_policy" "frontend" {
 resource "aws_cloudfront_distribution" "frontend" {
   enabled         = true
   is_ipv6_enabled = true
-  default_root_object = "index.html"  # Safer default (Flask handles routing)
+  # NO default_root_object! Flask handles root routing
 
-  # ---------- S3 Origin (Static Files) ----------
+  # ---------- S3 Origin (Static Files ONLY) ----------
   origin {
     domain_name = aws_s3_bucket.frontend.bucket_regional_domain_name
     origin_id   = "S3Frontend"
@@ -129,7 +129,7 @@ resource "aws_cloudfront_distribution" "frontend" {
     }
   }
 
-  # ---------- ALB Origin (Flask App) ----------
+  # ---------- ALB Origin (Flask App - HTML/API) ----------
   origin {
     domain_name = var.alb_dns_name
     origin_id   = "ALBBackend"
@@ -137,14 +137,12 @@ resource "aws_cloudfront_distribution" "frontend" {
     custom_origin_config {
       http_port              = 80
       https_port             = 443
-      origin_protocol_policy = "http-only"   # change to "https-only" if ALB uses HTTPS
+      origin_protocol_policy = "http-only"
       origin_ssl_protocols   = ["TLSv1.2"]
     }
   }
 
-  # ---------- Cache Behaviors ----------
-
-  # Static files (CSS, JS, images)
+  # ---------- Static files (CSS, JS) → S3 ----------
   ordered_cache_behavior {
     path_pattern     = "/static/*"
     allowed_methods  = ["GET", "HEAD", "OPTIONS"]
@@ -163,7 +161,7 @@ resource "aws_cloudfront_distribution" "frontend" {
     max_ttl                = 31536000  # 1 year
   }
 
-  # API routes → Flask via ALB
+  # ---------- API routes → Flask ----------
   ordered_cache_behavior {
     path_pattern     = "/api/*"
     allowed_methods  = ["GET", "HEAD", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"]
@@ -183,26 +181,25 @@ resource "aws_cloudfront_distribution" "frontend" {
     compress               = true
   }
 
-  # All other routes → Flask via ALB
+  # ---------- Everything else (/, /auth, /dashboard) → Flask ----------
   default_cache_behavior {
     allowed_methods  = ["GET", "HEAD", "OPTIONS", "POST", "PUT", "DELETE", "PATCH"]
     cached_methods   = ["GET", "HEAD"]
-    target_origin_id = "ALBBackend"
+    target_origin_id = "ALBBackend"  # ← Flask serves HTML!
 
     forwarded_values {
       query_string = true
       headers      = ["Host"]
-      cookies { forward = "all" }
+      cookies { forward = "all" }  # ← Sessions need cookies!
     }
 
     viewer_protocol_policy = "redirect-to-https"
     min_ttl                = 0
-    default_ttl            = 0
+    default_ttl            = 0  # Don't cache dynamic HTML!
     max_ttl                = 0
     compress               = true
   }
 
-  # ---------- General Settings ----------
   price_class = "PriceClass_100"
 
   restrictions {
