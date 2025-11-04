@@ -82,6 +82,33 @@ IAM Roles:
 
 📸 Screenshots
 
+<img width="1330" height="343" alt="cl" src="https://github.com/user-attachments/assets/93359555-7dc4-4421-a8c3-de1f1ddde383" />
+
+<img width="1364" height="724" alt="signup" src="https://github.com/user-attachments/assets/7cc04758-fec3-4cd0-a965-1bc5a64c5072" />
+
+<img width="1360" height="712" alt="login" src="https://github.com/user-attachments/assets/0cafa677-5ee8-4dd0-ac76-c5540a076699" />
+
+<img width="1365" height="723" alt="dash" src="https://github.com/user-attachments/assets/b040a16f-a89c-4ef0-955e-3cf866ef941d" />
+
+<img width="1366" height="714" alt="form" src="https://github.com/user-attachments/assets/7fddaea0-2e96-4e04-9804-8701b50aca9c" />
+
+<img width="1364" height="728" alt="lis" src="https://github.com/user-attachments/assets/0f50f10a-8934-4365-9ecf-eb913ac530ec" />
+
+<img width="1366" height="405" alt="boa" src="https://github.com/user-attachments/assets/c6a199f6-064d-4a01-b824-8d0e9a3cfb6a" />
+
+<img width="1351" height="598" alt="ec" src="https://github.com/user-attachments/assets/a7870271-1d37-4380-810a-02a50102cb48" />
+
+<img width="1365" height="467" alt="ALB" src="https://github.com/user-attachments/assets/f969f4e3-544b-4187-a668-22ac495fd6cc" />
+
+<img width="1359" height="640" alt="vpc" src="https://github.com/user-attachments/assets/32f404ff-0a63-4fba-9c2b-6582eb445902" />
+
+
+
+
+
+
+
+
 🎓 What This Project Proved
 
 I can:
