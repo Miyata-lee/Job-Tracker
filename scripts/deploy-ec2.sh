@@ -4,7 +4,7 @@
 set -euo pipefail
 
 APP_DIR="/home/ec2-user/jobtracker"
-REPO_URL="${REPO_URL:-https://github.com/Miyata-lee/Job-Tracker.git}"
+REPO_URL="${REPO_URL:-https://github.com/Ashik-Techie/Job-Tracker.git}"
 BRANCH="${BRANCH:-main}"
 VENV_DIR="$APP_DIR/venv"
 APP_PORT=5000

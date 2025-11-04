@@ -15,10 +15,6 @@ AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 S3_BUCKET="${PROJECT_NAME}-frontend-${ENVIRONMENT}-${AWS_ACCOUNT_ID}"
 aws s3 ls "s3://${S3_BUCKET}" >/dev/null || { echo "Bucket not found s3://${S3_BUCKET}"; exit 1; }
 
-# ============================================
-# ONLY UPLOAD STATIC FILES (NOT TEMPLATES!)
-# Templates are served by Flask from EC2
-# ============================================
 
 log "Syncing ONLY static files (CSS, JS) -> s3://${S3_BUCKET}/static"
 
