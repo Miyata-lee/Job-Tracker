@@ -65,6 +65,8 @@ Two fully automated pipelines:
 
 📸 Screenshots
 
+<img width="1062" height="172" alt="full flow" src="https://github.com/user-attachments/assets/9b09dbb1-2570-4664-a62d-cec0a9dc6bd8" />
+
 <img width="1330" height="343" alt="cl" src="https://github.com/user-attachments/assets/93359555-7dc4-4421-a8c3-de1f1ddde383" />
 
 <img width="1364" height="724" alt="signup" src="https://github.com/user-attachments/assets/7cc04758-fec3-4cd0-a965-1bc5a64c5072" />
