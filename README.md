@@ -1,6 +1,6 @@
 <h1 align="center"> 🧭 JobTracker – Cloud-Native Job Application Management System </h1> 
 
-A fully automated Job Application Management System built with a cloud-native approach.
+A fully automated Job Application Management System built with a cloud-native architecture.
 This project showcases modern DevOps practices using Terraform, AWS, CI/CD, and Flask —
 integrated into a single, maintainable deployment workflow.
 
@@ -19,20 +19,20 @@ ensuring reliability and minimal manual intervention.
 The architecture follows a modular design:
 - **Frontend:** HTML, CSS, JS served via S3 + CloudFront  
 - **Backend:** Flask application hosted on AWS EC2  
-- **Database:** Amazon RDS (MYSQL)
+- **Database:** Amazon RDS (MySQL)
 - **Storage:** S3 for static assets  
-- **Networking:** VPC with public/private subnets, security groups, and NAT gateway  
+- **Networking:** Custom VPC with public/private subnets and tightly configured security groups  
 - **Automation:** Terraform for IaC and GitHub Actions for CI/CD  
 
 
-✨ Highlights
+✨ Key Features
 
-- VPC with public/private subnets across two Availability Zones.
-- Application Load Balancer routing traffic to EC2 instances on port 5000.
-- Auto Scaling Group for high availability and fault tolerance.
-- RDS MySQL in private subnets for secure database hosting.
-- S3 + CloudFront for static asset delivery and caching.
-- GitHub Actions CI/CD pipeline with OIDC (no long-lived AWS keys).
+- VPC across two Availability Zones
+- ALB routing traffic to EC2 instances
+- Auto Scaling Group for high availability and fault tolerance
+- RDS MySQL in private subnets for secure database hosting
+- CloudFront + S3 for caching and faster delivery
+- GitHub Actions CI/CD pipeline with OIDC (no long-lived AWS keys)
 
 ⚙️ Tech Stack
 
@@ -47,40 +47,25 @@ The architecture follows a modular design:
 
 Security Groups:
 
-- ALB Security Group — Inbound: 80/443 from the internet; Egress: 5000 to EC2 instances.
-- EC2 Security Group — Inbound: 5000 from ALB SG, optional 22 (SSH) from operator IP; Egress: 3306 to RDS.
-- RDS Security Group — Inbound: 3306 from EC2 SG only.
+- ALB SG — Inbound: 80/443 from the internet; Egress: 5000 to EC2 instances.
+- EC2 SG — Inbound: 5000 from ALB SG, optional 22 (SSH) from operator IP; Egress: 3306 to RDS.
+- RDS SG — Inbound: 3306 from EC2 SG only.
 
 IAM Roles:
 
 - EC2 Instance Role: Grants least-privilege access for app and logging.
-- GitHub Actions OIDC Role: Assumed dynamically for Terraform and deployment.
-
-🔑 Repository Secrets
-
-| Name	               |  Description       |
-| -------------------  | ------------------ |
-| DB_USER	RDS          |  username          | 
-| DB_PASSWORD	RDS      |  password          |
-| EC2_PRIVATE_KEY	PEM  |  private key       |
-| SECRET_KEY	         |  Flask secret key  |
-
-⚙️ Key Decisions
-
-- Used public EC2 instances with tight security groups instead of private EC2 + NAT Gateway to minimize cost and simplify deployment.
-- CloudFront + S3 handle static content and reduce EC2 load.
-- ALB + ASG provide horizontal scaling and self-healing.
-- OIDC-based GitHub Actions eliminate the need for stored AWS credentials.
+- GitHub Actions OIDC Role: Temporary credentials for Terraform and deployments.
 
 🚀 CI/CD Workflow
 
-- Two automated pipelines manage the deployment process:
-- Infrastructure Workflow: Runs Terraform plan and apply when updates are pushed.
-- Application Workflow: Builds and deploys the Flask app to EC2, uploads static files to S3,
-- and invalidates CloudFront cache for instant content updates.
+Two fully automated pipelines:
+- Infrastructure Pipeline: Terraform plan → apply (runs on infra changes)
+- Application Pipeline: Builds Flask app → deploys to EC2 → syncs S3 → invalidates CloudFront cache
 
 
 📸 Screenshots
+
+<img width="1062" height="172" alt="full flow" src="https://github.com/user-attachments/assets/9b09dbb1-2570-4664-a62d-cec0a9dc6bd8" />
 
 <img width="1330" height="343" alt="cl" src="https://github.com/user-attachments/assets/93359555-7dc4-4421-a8c3-de1f1ddde383" />
 
@@ -109,26 +94,22 @@ IAM Roles:
 
 
 
-🎓 What This Project Proved
 
-I can:
-- Design cloud architecture from scratch
-- Write infrastructure as code (Terraform)
-- Automate deployments (CI/CD)
-- Implement security best practices
-- Think about scaling and reliability
-- Debug complex AWS issues
-- Make pragmatic tradeoffs (cost vs. complexity)
+🎓 What This Project Demonstrates
+
+- Designing end-to-end cloud architecture
+- Writing Infrastructure as Code (Terraform)
+- Implementing CI/CD with GitHub Actions
+- Managing AWS security and IAM roles
+- Balancing performance, reliability, and cost
 
 🎯 Final Thought
 
- The goal wasn't perfection - it was learning.
+The goal wasn’t perfection — it was to learn and build something real using end-to-end DevOps principles.
 
 
-👤 Author
+👤 Author: Ashik Meeran 
 
-Ashik — Cloud & DevOps 
+GitHub: https://github.com/Ashik-Techie
 
-GitHub: [github.com/Miyata-lee](https://github.com/Miyata-lee/Job-Tracker.git)
-
-LinkedIn: 
+LinkedIn: www.linkedin.com/in/ashik-meeran
