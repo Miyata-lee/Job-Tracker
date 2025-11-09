@@ -1,5 +1,5 @@
-#!/usr/bin/env bash
-# JobTracker EC2 Flask App Deployment (Amazon Linux 2023)
+#!/bin/bash
+
 
 set -euo pipefail
 
@@ -12,12 +12,12 @@ SERVICE_NAME="jobtracker"
 
 log(){ echo "[$(date +'%F %T')] $*"; }
 
-# Stop existing service if present
+
 if sudo systemctl list-unit-files | grep -q "^${SERVICE_NAME}.service"; then
   sudo systemctl stop "$SERVICE_NAME" || true
 fi
 
-# OS deps
+
 if command -v dnf >/dev/null 2>&1; then
   sudo dnf -y update
   sudo dnf -y install python3 python3.11 python3.11-venv git
@@ -27,7 +27,6 @@ else
 fi
 PY_BIN=$(command -v python3.11 || command -v python3)
 
-# Clone or update
 if [ -d "$APP_DIR/.git" ]; then
   git -C "$APP_DIR" fetch origin
   git -C "$APP_DIR" checkout "$BRANCH"
@@ -36,14 +35,14 @@ else
   git clone -b "$BRANCH" "$REPO_URL" "$APP_DIR"
 fi
 
-# Venv + packages
+
 [ -d "$VENV_DIR" ] || "$PY_BIN" -m venv "$VENV_DIR"
 source "$VENV_DIR/bin/activate"
 pip install --upgrade pip
 pip install -r "$APP_DIR/application/requirements.txt"
 pip install gunicorn mysql-connector-python flask-cors
 
-# .env for Flask app
+
 install -m 600 /dev/null "$APP_DIR/application/.env"
 cat > "$APP_DIR/application/.env" <<EOF
 DB_HOST=${DB_HOST}
@@ -54,7 +53,7 @@ SECRET_KEY=${SECRET_KEY}
 CORS_ORIGINS=${CORS_ORIGINS:-*}
 EOF
 
-# systemd unit
+
 sudo tee /etc/systemd/system/${SERVICE_NAME}.service >/dev/null <<EOF
 [Unit]
 Description=JobTracker Flask via Gunicorn

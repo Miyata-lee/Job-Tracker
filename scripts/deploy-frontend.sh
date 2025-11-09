@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 
 set -euo pipefail
 
@@ -18,23 +18,18 @@ aws s3 ls "s3://${S3_BUCKET}" >/dev/null || { echo "Bucket not found s3://${S3_B
 
 log "Syncing ONLY static files (CSS, JS) -> s3://${S3_BUCKET}/static"
 
-# Upload static files only
+
 aws s3 sync application/static "s3://${S3_BUCKET}/static" \
   --region "${AWS_REGION}" \
   --delete \
-  --cache-control "max-age=86400,s-maxage=86400"  # Cache for 1 day
+  --cache-control "max-age=86400,s-maxage=86400" 
 
-# ============================================
-# REMOVE templates from S3 (if they exist)
-# Flask serves them from EC2 now!
-# ============================================
+
 
 log "Removing templates from S3 (Flask serves them now)"
 aws s3 rm "s3://${S3_BUCKET}/templates" --recursive --region "${AWS_REGION}" 2>/dev/null || true
 
-# ============================================
-# CloudFront Invalidation (static files only)
-# ============================================
+
 
 if [ -n "${CF_ALIAS_MATCH}" ]; then
   CLOUDFRONT_ID=$(aws cloudfront list-distributions \

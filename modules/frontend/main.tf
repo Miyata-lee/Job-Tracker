@@ -1,10 +1,10 @@
 data "aws_caller_identity" "current" {}
 
-# ======================================================
-# S3 Buckets
-# ======================================================
 
-# ---------- Frontend Bucket ----------
+# S3 Buckets
+
+
+#Frontend Bucket 
 resource "aws_s3_bucket" "frontend" {
   bucket = "${var.project_name}-frontend-${var.environment}-${data.aws_caller_identity.current.account_id}"
 
@@ -31,7 +31,7 @@ resource "aws_s3_bucket_versioning" "frontend" {
   }
 }
 
-# ---------- Logs Bucket ----------
+# Logs Bucket 
 resource "aws_s3_bucket" "logs" {
   bucket = "${var.project_name}-logs-${var.environment}-${data.aws_caller_identity.current.account_id}"
 
@@ -83,15 +83,15 @@ resource "aws_s3_bucket_acl" "logs" {
   acl    = "log-delivery-write"
 }
 
-# ======================================================
+
 # CloudFront
-# ======================================================
+
 
 resource "aws_cloudfront_origin_access_identity" "oai" {
   comment = "OAI for ${var.project_name}-${var.environment}"
 }
 
-# ---------- Frontend Bucket Policy ----------
+# Frontend Bucket Policy -
 resource "aws_s3_bucket_policy" "frontend" {
   bucket = aws_s3_bucket.frontend.id
   policy = jsonencode({
@@ -110,16 +110,16 @@ resource "aws_s3_bucket_policy" "frontend" {
   })
 }
 
-# ======================================================
+
 # CloudFront Distribution
-# ======================================================
+
 
 resource "aws_cloudfront_distribution" "frontend" {
   enabled         = true
   is_ipv6_enabled = true
-  # NO default_root_object! Flask handles root routing
+ 
 
-  # ---------- S3 Origin (Static Files ONLY) ----------
+
   origin {
     domain_name = aws_s3_bucket.frontend.bucket_regional_domain_name
     origin_id   = "S3Frontend"
@@ -129,7 +129,7 @@ resource "aws_cloudfront_distribution" "frontend" {
     }
   }
 
-  # ---------- ALB Origin (Flask App - HTML/API) ----------
+  #  ALB Origin (Flask App - HTML/API)
   origin {
     domain_name = var.alb_dns_name
     origin_id   = "ALBBackend"
@@ -142,7 +142,7 @@ resource "aws_cloudfront_distribution" "frontend" {
     }
   }
 
-  # ---------- Static files (CSS, JS) → S3 ----------
+  # Static files (CSS, JS) → S3 
   ordered_cache_behavior {
     path_pattern     = "/static/*"
     allowed_methods  = ["GET", "HEAD", "OPTIONS"]
@@ -161,7 +161,7 @@ resource "aws_cloudfront_distribution" "frontend" {
     max_ttl                = 31536000  # 1 year
   }
 
-  # ---------- API routes → Flask ----------
+  # API routes → Flask 
   ordered_cache_behavior {
     path_pattern     = "/api/*"
     allowed_methods  = ["GET", "HEAD", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"]
@@ -181,21 +181,21 @@ resource "aws_cloudfront_distribution" "frontend" {
     compress               = true
   }
 
-  # ---------- Everything else (/, /auth, /dashboard) → Flask ----------
+  
   default_cache_behavior {
     allowed_methods  = ["GET", "HEAD", "OPTIONS", "POST", "PUT", "DELETE", "PATCH"]
     cached_methods   = ["GET", "HEAD"]
-    target_origin_id = "ALBBackend"  # ← Flask serves HTML!
+    target_origin_id = "ALBBackend" 
 
     forwarded_values {
       query_string = true
       headers      = ["Host"]
-      cookies { forward = "all" }  # ← Sessions need cookies!
+      cookies { forward = "all" }  
     }
 
     viewer_protocol_policy = "redirect-to-https"
     min_ttl                = 0
-    default_ttl            = 0  # Don't cache dynamic HTML!
+    default_ttl            = 0  
     max_ttl                = 0
     compress               = true
   }
