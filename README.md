@@ -21,7 +21,7 @@ The architecture follows a modular design:
 - **Backend:** Flask application hosted on AWS EC2  
 - **Database:** Amazon RDS (MySQL)
 - **Storage:** S3 for static assets  
-- **Networking:** Custom VPC with public/private subnets and tightly configured security groups  
+- **Networking:** VPC with public/private subnets and tightly configured security groups  
 - **Automation:** Terraform for IaC and GitHub Actions for CI/CD  
 
 
