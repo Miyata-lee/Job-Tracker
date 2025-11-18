@@ -21,8 +21,30 @@ The architecture follows a modular design:
 - **Backend:** Flask application hosted on AWS EC2  
 - **Database:** Amazon RDS (MySQL)
 - **Storage:** S3 for static assets  
-- **Networking:** Custom VPC with public/private subnets and tightly configured security groups  
-- **Automation:** Terraform for IaC and GitHub Actions for CI/CD  
+- **Networking:** VPC with public/private subnets and tightly configured security groups  
+- **Automation:** Terraform for IaC and GitHub Actions for CI/CD
+
+
+📂 Project Structure                   
+```bash
+Job-Tracker/
+├── .github/
+│   └── workflows/
+│       ├── application.yml
+│       └── infrastructure.yml       
+├── application/                    
+├── environment/                     
+├── modules/                        
+│   ├── compute/                   
+│   ├── database/                   
+│   ├── frontend/                  
+│   ├── network/                   
+│   └── security/                   
+├── scripts/                         
+├── .gitignore
+├── Architecture.svg
+└── README.md
+```
 
 
 ✨ Key Features
@@ -33,6 +55,7 @@ The architecture follows a modular design:
 - RDS MySQL in private subnets for secure database hosting
 - CloudFront + S3 for caching and faster delivery
 - GitHub Actions CI/CD pipeline with OIDC (no long-lived AWS keys)
+- Optimized for cost and simplicity — public EC2 instances with tightly controlled security groups were used instead of a NAT Gateway setup
 
 ⚙️ Tech Stack
 
