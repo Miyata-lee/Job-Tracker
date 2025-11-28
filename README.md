@@ -59,12 +59,13 @@ Job-Tracker/
 
 ⚙️ Tech Stack
 
-| Category              | Tools Used                               |
-| --------------------- | ---------------------------------------- |
-|   Infrastructure      | Terraform                                |
-|   Cloud Provider      | AWS (EC2, RDS, S3, CloudFront, IAM, VPC) |
-|   CI/CD               | GitHub Actions                           |
-|   Version Control     | Git & GitHub                             |
+| Category                      | Tools Used                               |
+| -------------------------     | ---------------------------------------- |
+|   Infrastructure as Code      | Terraform                                |
+|   Cloud Provider              | AWS (EC2, RDS, S3, CloudFront, IAM, VPC) |
+|   CI/CD                       | GitHub Actions                           |
+|   Scripting                   | Bash                                     |
+|   Version Control             | Git & GitHub                             |
 
 🔒 Security Design
 
