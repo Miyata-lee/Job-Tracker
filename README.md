@@ -71,8 +71,8 @@ Job-Tracker/
 
 Security Groups:
 
-- ALB SG — Inbound: 80/443 from the internet; Egress: 5000 to EC2 instances.
-- EC2 SG — Inbound: 5000 from ALB SG, optional 22 (SSH) from operator IP; Egress: 3306 to RDS.
+- ALB SG — Inbound: 80 from the internet; Egress: all outbound.
+- EC2 SG — Inbound: 80/5000 from ALB SG, optional 22 (SSH) from operator IP; Egress: 3306 to RDS and 80/443 for updates.
 - RDS SG — Inbound: 3306 from EC2 SG only.
 
 IAM Roles:
@@ -127,9 +127,6 @@ Two fully automated pipelines:
 - Managing AWS security and IAM roles
 - Balancing performance, reliability, and cost
 
-🎯 Final Thought
-
-The goal wasn’t perfection — it was to learn and build something real using end-to-end DevOps principles.
 
 
 👤 Author: Ashik Meeran 
